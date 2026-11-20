@@ -1,7 +1,9 @@
 # Lights Out: F1 Fan Experience (prototype)
 
 Feel a 2026-style Grand Prix from three seats: the **cockpit**, the **pit wall** and the **grandstand**.
-All teams, drivers and circuits are original (no official F1 branding), so it can be shared freely.
+All teams, drivers and circuit names are original (no official F1 branding), so it can be shared freely.
+The seven circuits use real track outlines (open data, MIT licence) with real lengths, elevation and corner names;
+see docs/CIRCUITS.md.
 
 It runs in any modern browser on PC and mobile. No install needed.
 
@@ -28,18 +30,31 @@ It runs in any modern browser on PC and mobile. No install needed.
 
 ## Controls
 
-| | Keyboard | Gamepad | Touch |
+Keyboard keys can be remapped in **How to play** (menu tab) or from the pause screen. Press **H** in a race for the controls card.
+
+| | Keyboard (default) | Gamepad | Touch |
 | --- | --- | --- | --- |
-| Throttle / brake | ↑ W / ↓ S | RT / LT | Right pedals |
-| Steer | ← → / A D | Left stick | Left pad |
-| Boost (hold) | Space or Shift | A + throttle | BOOST |
-| Overtake Mode | O | X | OT |
-| Recharge mode | R | Back | RECHG |
-| Box this lap | P | B | BOX |
-| Camera | C | Y | CAM |
-| Racing line | L | | LINE |
-| Pause | Esc | Start | II |
-| Manual gears | Q / E | LB / RB | |
+| Throttle / brake | ↑ W / ↓ S | RT / LT | Pedals (right, or left in left-handed layout) |
+| Steer | ← → / A D | Left stick | Drag pad, tilt the phone, or ◀ ▶ buttons |
+| Boost (hold) | Space or Shift | A (hold) | BOOST |
+| Overtake mode | O / F | X | OT |
+| Recharge mode | R | View / Back | RECHG |
+| Box this lap | P / B | B | BOX |
+| Wheel display page | Tab | D-pad → | Tap the wheel screen |
+| Camera | C / V | Y | CAM |
+| Racing line | L | D-pad ↓ | LINE |
+| Controls card | H | D-pad ↑ | ? |
+| Pause | Esc | Menu / Start | II |
+| Manual gears | Q / E | LB / RB | ▲ ▼ |
+
+Touch settings: steering mode, sensitivity, left-handed pedals, button size, auto-throttle.
+The **coach** explains each tool the first time it matters in a race (on by default; you can reset it to show the tips again).
+
+### What the cockpit shows (modelled on real 2026 cars)
+- Two wing mirrors on their stalks, rendered in place (real size or enlarged)
+- A halo centre pillar faded "as drivers see it" (each eye sees around it), or solid or hidden
+- Steering wheel: shift lights; FIA marshalling lights (yellow, blue, green, SC flashing, chequered); battery bar and tyre squares;
+  mode lamps (Straight, Overtake, Boost, Recharge, Pit); and three screen pages: RACE, ENERGY and TYRES
 
 ## Develop
 
@@ -67,13 +82,18 @@ src/
   race.js         race rules: timing, gaps, strategy, weather, safety car, penalties, results, commentary
   ai.js           AI drivers (track coordinates), pit lane controller
   physics.js      player car physics: downforce, drag, ERS, friction circle, active aero, tyres
-  track.js        circuit model: spline sampling, racing line, speed profile, zones, corners, pit lane
-  scenery.js      3D circuit: road, kerbs, walls, pits, stands, gantry, terrain, trees, sky
+  circuits.js     the 7 circuits: elevation, corner names, theme, weather odds
+  geo.js          generated real track outlines (tools/circuitgen.py)
+  track.js        circuit model: spline sampling, min-curvature racing line, gradients, bridges, speed profile, zones, corners, pit lane
+  scenery.js      3D circuit: road, walls, pits, stands, gantry, terrain, venue themes (forest, airfield, bowl, city at night), landmarks, sky
+  trackside.js    kerbs, skid marks, run-off, barriers, marshal posts, sponsor gantries, verges
   cars.js         car models and the safety car
   particles.js    spray, smoke, sparks, debris
   audio.js        synthesised sound + haptics
-  input.js        keyboard, gamepad and touch
-  data.js         teams, drivers, circuits, tyre compounds
+  input.js        keyboard (remappable), gamepad and touch (drag, tilt, buttons)
+  controls.js     key bindings, device labels, How to play guide
+  coach.js        in-race tips shown the first time each situation comes up
+  data.js         teams, drivers, tyre compounds
 assets/           app icons, web manifest, service worker
 tools/            automated browser tests (Python + Playwright)
 docs/             design notes and roadmap
@@ -91,3 +111,6 @@ python3 tools/flows2.py quali                  # qualifying -> race -> results
 ```
 
 They expect Chrome at /usr/bin/google-chrome and `pip install playwright`.
+
+### Graphics quality
+Low = no shadows/post FX (phones). Medium = shadows + bloom. High = sharper shadows, speed blur, lens flare.

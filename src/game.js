@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { buildScenery } from './scenery.js';
-import { makeCar, makeSafetyCar } from './cars.js';
+import { makeCar, makeSafetyCar, setCarQuality } from './cars.js';
 import { Race } from './race.js';
 import { Particles } from './particles.js';
+import { makePost, addLensflare } from './post.js';
 import { PlayerCar, PHYS } from './physics.js';
 import { $, isTouch, clamp, wrapA } from './util';
 import { cfg, saveCfg, sound, haptics, input, getTrack, S, isSolo, isAI } from './ctx';
@@ -16,13 +17,13 @@ import { profile, drawHelmet } from './profile';
 // ------------------------------------------------------------------ renderer
 
 export function ensureRenderer(quality) {
-  if (S.renderer) { S.renderer.setPixelRatio(pixelRatioFor(quality)); S.renderer.shadowMap.enabled = quality === 'high'; return; }
+  if (S.renderer) { S.renderer.setPixelRatio(pixelRatioFor(quality)); S.renderer.shadowMap.enabled = quality !== 'low'; return; }
   const canvas = $('#gl');
   S.renderer = new THREE.WebGLRenderer({ canvas, antialias: quality !== 'low', powerPreference: 'high-performance' });
   S.renderer.setPixelRatio(pixelRatioFor(quality));
-  S.renderer.toneMapping = THREE.ACESFilmicToneMapping; S.renderer.toneMappingExposure = 1.0;
+  S.renderer.toneMapping = THREE.NeutralToneMapping; S.renderer.toneMappingExposure = 0.95;
   S.renderer.outputColorSpace = THREE.SRGBColorSpace;
-  S.renderer.shadowMap.enabled = quality === 'high'; S.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  S.renderer.shadowMap.enabled = quality !== 'low'; S.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   S.camera = new THREE.PerspectiveCamera(70, 1, 0.05, 9000);
   const resize = () => { S.renderer.setSize(innerWidth, innerHeight, false); S.camera.aspect = innerWidth / innerHeight; S.camera.updateProjectionMatrix(); };
   addEventListener('resize', resize); resize();
@@ -32,6 +33,7 @@ export function resolvedQuality() { if (cfg.quality !== 'auto') return cfg.quali
 
 // ------------------------------------------------------------------ game setup
 export function startGame() {
+  input.inGame = true; input.rebind();
   $('#menu').classList.add('hidden');
   $('#loading').classList.remove('hidden');
   setTimeout(() => {
@@ -56,11 +58,16 @@ export function buildGame() {
     drawHelmet(hc.getContext('2d'), 512, 256, profile.helmet, cfg.num || 1);
     g.helmetTex = new THREE.CanvasTexture(hc); g.helmetTex.colorSpace = THREE.SRGBColorSpace;
   }
+  setCarQuality(quality);
+  g.post = makePost(S.renderer, S.scene, S.camera, quality);
+  // sun flare: a far-away anchor in the sun's direction that follows the camera
+  g.flare = addLensflare(scen.sun, quality);
+  if (g.flare) { g.flareAnchor = new THREE.Object3D(); g.flareAnchor.add(g.flare); S.scene.add(g.flareAnchor); }
   g.particles = new Particles(S.scene, quality);
   g.crew = makeCrew(S.scene);
   g.mirror = cfg.mirror !== false && !isTouch;
   for (const c of race.cars) {
-    const v = makeCar(c.team, { shadows: quality === 'high', helmetTex: c.isPlayer && g.helmetTex ? g.helmetTex : null });
+    const v = makeCar(c.team, { shadows: quality !== 'low', helmetTex: c.isPlayer && g.helmetTex ? g.helmetTex : null, num: c instanceof PlayerCar ? (cfg.num ?? 1) : c.driver?.num });
     v.setCompound(c.tyre.c); v.compound = c.tyre.c;
     S.scene.add(v.root); g.cars.set(c, v);
   }
@@ -84,6 +91,7 @@ export function teardown() {
   if (!S.G) return;
   S.G.dead = true;
   if (S.G.cleanup) S.G.cleanup();
+  if (S.G.post) S.G.post.dispose();
   S.scene.traverse(o => { if (o.geometry) o.geometry.dispose?.(); });
   S.G = null;
 }
@@ -167,6 +175,8 @@ export function loop(now) {
     if (!isAI()) { cfg.camera = g.camMode; saveCfg(); }
   }
   if (input.consume('line')) { const ms = ['off', 'brake', 'full']; setLineMode(g, ms[(ms.indexOf(g.lineMode) + 1) % 3]); }
+  if (input.consume('page')) g.wheelPage = ((g.wheelPage || 0) + 1) % 3;
+  if (input.consume('help') && !isAI()) { if (g.paused) hidePause(g); else if (!g.resultsShown) showPause(g, 'controls'); }
 
   const p = race.player;
   const drive = input.read(dt, p.v);
@@ -192,7 +202,14 @@ export function loop(now) {
   g.particles.update(g.paused ? 0 : dt);
   updateCrew(g);
   if (g.bigScreen && !g.paused) renderBigScreen(g);
-  S.renderer.render(S.scene, S.camera);
+  if (g.flareAnchor) { g.flareAnchor.position.copy(S.camera.position).add(new THREE.Vector3(...g.scen.tod.sunPos).normalize().multiplyScalar(3000)); g.flare.visible = race.weather.rain < 0.15 && !g.inTunnel && !g.scen.night; }
+  if (g.post) {
+    if (g.post.speed) {
+      const fast = ['cockpit', 'tcam', 'chase', 'onboard'].includes(g.camMode) ? Math.max(0, (g.focus.v - 45) / 50) : 0;
+      g.post.speed.uniforms.amount.value += (Math.min(1, fast) * 1.0 - g.post.speed.uniforms.amount.value) * Math.min(1, dt * 4);
+    }
+    g.post.composer.render();
+  } else S.renderer.render(S.scene, S.camera);
   renderMirror(g);
   input.clearEdges();
 }
@@ -312,6 +329,12 @@ export function placeCars(g, dt) {
     }
     const hideHead = c === race.player && !isAI() && (g.camMode === 'cockpit');
     v.helmet.visible = !hideHead; v.visor.visible = !hideHead;
+    if (c === race.player) {
+      if (!v.haloSolid) { v.haloSolid = v.halo.material; v.haloSee = v.halo.material.clone(); v.haloSee.transparent = true; v.haloSee.opacity = 0.3; v.haloSee.depthWrite = false; }
+      const inCock = hideHead;
+      v.halo.material = inCock && cfg.halo === 'real' ? v.haloSee : v.haloSolid;
+      v.halo.visible = !(inCock && cfg.halo === 'off');
+    }
   }
   // safety car
   const sc = race.scCar;
@@ -382,6 +405,10 @@ export function updateCamera(g, dt) {
     const pos = new THREE.Vector3(-45, 60, 20); r.localToWorld(pos);
     if (!g.heliPos) g.heliPos = pos.clone(); g.heliPos.lerp(pos, Math.min(1, dt * 1.5));
     S.camera.position.copy(g.heliPos); S.camera.lookAt(r.position); fov = 40;
+  } else if (mode === 'debug' && g.debugCam) {
+    // test hook: orbit a car (target = car-local point)
+    const d = g.debugCam; const tgt = new THREE.Vector3(...(d.target || [0, 0.5, 0])); if (!d.world) r.localToWorld(tgt);
+    const p = new THREE.Vector3(...d.pos); if (!d.world) r.localToWorld(p); S.camera.position.copy(p); S.camera.lookAt(tgt); fov = d.fov || 40;
   } else if (mode === 'seat') {
     fov = seatCamera(g, dt);
   } else if (mode === 'tv') {
@@ -412,8 +439,10 @@ export function updateEffects(g, dt) {
   T.roadMat.color.copy(dryRoad).lerp(wetRoad, wet);
   T.roadMat.roughness = 0.92 - wet * 0.3; T.roadMat.metalness = wet * 0.05;
   sc.skyMat.uniforms.dark.value = rain * 0.75;
+  sc.skyMat.uniforms.time.value = g.t;
+  if (sc.wheel) sc.wheel.rotation.z += dt * 0.04;
   const fogFar = 4200 - rain * 3300; S.scene.fog.far = fogFar; S.scene.fog.near = 450 - rain * 380;
-  S.scene.fog.color.setHex(sc.tod.fog).lerp(new THREE.Color(0x8d939b), rain * 0.8);
+  S.scene.fog.color.setHex(sc.tod.fog).lerp(new THREE.Color(sc.night ? 0x1c2028 : 0x8d939b), rain * 0.8);
   // tunnel
   let inTunnel = false;
   if (T.tunnel) { const s = g.focus.s; inTunnel = s > T.tunnel[0] && s < T.tunnel[1] && (g.camMode === 'cockpit' || g.camMode === 'tcam' || g.camMode === 'chase' || g.camMode === 'onboard'); }
@@ -422,7 +451,7 @@ export function updateEffects(g, dt) {
   g.lightK = (g.lightK ?? 1) + (lightK - (g.lightK ?? 1)) * Math.min(1, dt * 5);
   sc.sun.intensity = sc.tod.sunI * g.lightK; sc.hemi.intensity = sc.tod.hemiI * (0.35 + 0.65 * g.lightK);
   // shadow camera follows the focus car
-  if (sc.sun.castShadow) { const fp = g.cars.get(g.focus).root.position; sc.sun.target.position.copy(fp); sc.sun.position.copy(fp).add(new THREE.Vector3(...sc.tod.sunPos).multiplyScalar(300)); }
+  if (sc.sun.castShadow) { const fp = g.cars.get(g.focus).root.position; sc.sun.target.position.copy(fp); sc.sun.position.copy(fp).add(new THREE.Vector3(...sc.tod.sunPos).normalize().multiplyScalar(300)); }
   // rain streaks
   const rm = g.rain;
   rm.material.opacity = Math.min(0.55, rain * 0.7);
@@ -537,39 +566,61 @@ export function updateCrew(g) {
   mesh.count = n; mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 }
 
-// ------------------------------------------------------------------ rear-view mirror (PC)
-// The rear view is rendered into a texture and drawn flipped, like a real mirror.
-const mirrorCam = new THREE.PerspectiveCamera(40, 4.2, 0.3, 1500);
-let mirrorRT = null, mirrorScene = null, mirrorOrtho = null;
+// ------------------------------------------------------------------ wing mirrors
+// Like the real car: two small mirrors on stalks either side of the cockpit. Each rear view is
+// rendered into a texture (alternate frames) and drawn, flipped, over the mirror housing as seen
+// from the driver's eye. 'large' scales the glass up for readability on small screens.
+const mirrorCam = new THREE.PerspectiveCamera(32, 2.6, 0.3, 1200);
+const mirrors = [{ side: 1 }, { side: -1 }];
+let mirrorScene = null, mirrorOrtho = null, mirrorFrame = 0;
+const mv = new THREE.Vector3();
 export function renderMirror(g) {
   const p = g.race.player;
-  const el = document.getElementById('mirror');
-  const on = g.mirror && (p instanceof PlayerCar) && !p.auto && ['cockpit', 'tcam'].includes(g.camMode) && innerWidth >= 900;
-  if (el) el.style.display = on ? '' : 'none';
-  const W = innerWidth, H = innerHeight;
-  const w = Math.round(Math.min(420, W * 0.3)), h = Math.round(w / 4.2);
-  document.documentElement.style.setProperty('--mirrorH', on ? (h + 8) + 'px' : '0px');
-  if (!on) return;
-  if (!mirrorRT) {
-    mirrorRT = new THREE.WebGLRenderTarget(512, 122);
-    mirrorScene = new THREE.Scene();
-    mirrorOrtho = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
-    const tex = mirrorRT.texture; tex.repeat.x = -1; tex.offset.x = 1;
-    const quad = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: tex, depthTest: false, depthWrite: false }));
-    quad.position.z = -0.5; mirrorScene.add(quad);
+  const els = [document.getElementById('mirrorR'), document.getElementById('mirrorL')];
+  const on = cfg.mirror && g.quality !== 'low' && (p instanceof PlayerCar) && !p.auto && g.camMode === 'cockpit' && innerWidth >= 560;
+  document.documentElement.style.setProperty('--mirrorH', '0px');
+  if (!on) { els.forEach(e => e && (e.style.display = 'none')); return; }
+  if (!mirrorScene) {
+    mirrorScene = new THREE.Scene(); mirrorOrtho = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
+    for (const m of mirrors) {
+      m.rt = new THREE.WebGLRenderTarget(320, 124);
+      const tex = m.rt.texture; tex.repeat.x = -1; tex.offset.x = 1;
+      m.quad = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: tex, depthTest: false, depthWrite: false }));
+      m.quad.position.z = -0.5;
+    }
   }
-  const r = g.cars.get(p).root;
-  const eye = new THREE.Vector3(0.1, 1.2, 0); r.localToWorld(eye);
-  const back = new THREE.Vector3(-25, 0.8, 0); r.localToWorld(back);
-  mirrorCam.position.copy(eye); mirrorCam.lookAt(back);
-  const R = S.renderer;
-  R.setRenderTarget(mirrorRT); R.render(S.scene, mirrorCam); R.setRenderTarget(null);
-  const x = Math.round((W - w) / 2), yTop = 58;
+  const r = g.cars.get(p).root; r.updateMatrixWorld();
+  const R = S.renderer, W = innerWidth, H = innerHeight;
+  const big = cfg.mirrorSize === 'large' ? 1.9 : 1.15;
+  // refresh one mirror per frame
+  const upd = mirrors[mirrorFrame++ % 2];
+  {
+    const eye = new THREE.Vector3(0.7, 0.86, 0.62 * upd.side); r.localToWorld(eye);
+    const back = new THREE.Vector3(-30, 0.6, 3.2 * upd.side); r.localToWorld(back);
+    mirrorCam.position.copy(eye); mirrorCam.lookAt(back);
+    R.setRenderTarget(upd.rt); R.render(S.scene, mirrorCam); R.setRenderTarget(null);
+  }
   R.autoClear = false;
-  R.setScissorTest(true); R.setViewport(x, H - yTop - h, w, h); R.setScissor(x, H - yTop - h, w, h);
-  R.render(mirrorScene, mirrorOrtho);
-  R.setScissorTest(false); R.setViewport(0, 0, W, H); R.autoClear = true;
-  if (el) { el.style.left = x + 'px'; el.style.top = yTop + 'px'; el.style.width = w + 'px'; el.style.height = h + 'px'; }
+  mirrors.forEach((m, k) => {
+    // project the glass corners
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, behind = false;
+    for (const [dy, dz] of [[-0.028, -0.075], [0.028, -0.075], [-0.028, 0.075], [0.028, 0.075]]) {
+      mv.set(0.8, 0.8 + dy, 0.6 * m.side + dz); r.localToWorld(mv); mv.project(S.camera);
+      if (mv.z > 1) behind = true;
+      const sx = (mv.x * 0.5 + 0.5) * W, sy = (1 - (mv.y * 0.5 + 0.5)) * H;
+      x0 = Math.min(x0, sx); x1 = Math.max(x1, sx); y0 = Math.min(y0, sy); y1 = Math.max(y1, sy);
+    }
+    const cxs = (x0 + x1) / 2, cys = (y0 + y1) / 2;
+    let w = Math.max(60, (x1 - x0) * big), h = w / 2.6;
+    const x = Math.round(Math.max(4, Math.min(W - w - 4, cxs - w / 2))), y = Math.round(Math.max(60, Math.min(H - h - 4, cys - h / 2)));
+    const el = els[k];
+    if (behind) { if (el) el.style.display = 'none'; return; }
+    R.setScissorTest(true); R.setViewport(x, H - y - h, w, h); R.setScissor(x, H - y - h, w, h);
+    mirrorScene.add(m.quad); R.render(mirrorScene, mirrorOrtho); mirrorScene.remove(m.quad);
+    R.setScissorTest(false);
+    if (el) { el.style.display = ''; el.style.left = x + 'px'; el.style.top = y + 'px'; el.style.width = w + 'px'; el.style.height = h + 'px'; }
+  });
+  R.setViewport(0, 0, W, H); R.autoClear = true;
 }
 
 function fmtLap(t) { const m = Math.floor(t / 60); return m + ':' + (t - m * 60).toFixed(3).padStart(6, '0'); }

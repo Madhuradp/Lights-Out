@@ -8,6 +8,8 @@ import { seg } from './menu';
 import { flash } from './game';
 import { closePitMenu } from './pitstop';
 import { showResults, speak } from './screens';
+import { label, keyName, bindings } from './controls.js';
+import { updateCoach } from './coach.js';
 
 // ------------------------------------------------------------------ HUD
 export function buildHUD(g) {
@@ -18,8 +20,9 @@ export function buildHUD(g) {
     <div class="topc"><div class="chip"><small>LAP</small><span id="lapc">1/${race.laps}</span></div>${!isSolo() && !gs ? '<div class="chip"><span class="posbig" id="posc">P1</span></div>' : ''}<div class="chip hidden" id="flagc"></div></div>
     ${ai ? '' : `<div class="lapinfo"><div class="ln"><span>LAP TIME</span><b id="curl">0:00.000</b></div><div class="sectors" id="secs"><div></div><div></div><div></div></div><div class="ln"><span>LAST</span><span id="lastl">--</span></div><div class="ln"><span>BEST</span><span id="bestl">--</span></div><div class="delta" id="delta"></div></div>
     <div class="tyrebox" id="tyrebox"></div>
-    <div class="topbtns"><button class="hbtn pe" id="bCam">CAM</button><button class="hbtn pe" id="bLine">LINE</button><button class="hbtn pe" id="bPause">II</button></div>`}
-    <div id="mirror" class="mirror" style="display:none"></div>
+    <div class="topbtns"><button class="hbtn pe" id="bHelp" title="Controls (${keyName(bindings().help[0] || 'KeyH')})">?</button><button class="hbtn pe" id="bCam">CAM</button><button class="hbtn pe" id="bLine">LINE</button><button class="hbtn pe" id="bPause">II</button></div>`}
+    <div id="mirrorL" class="mirror" style="display:none"></div><div id="mirrorR" class="mirror" style="display:none"></div>
+    <div id="coach" class="coach hidden"></div>
     <div class="rc" id="rc"></div>
     <div id="bannerHost"></div>
     <div id="radioHost"></div>
@@ -28,16 +31,25 @@ export function buildHUD(g) {
     ${ai ? '' : `<div class="wheel" id="wheel"><div class="grip l"></div><div class="grip r"></div><div class="body"></div>
       <div class="leds" id="leds">${Array.from({ length: 15 }, () => '<i></i>').join('')}</div>
       <div class="batt"><i id="wbatt"></i></div>
-      <div class="screen"><div class="spd"><small>KM/H</small><span id="wspd">0</span></div><div class="gear" id="wgear">N</div><div class="dl"><small id="wdlL">DELTA</small><span id="wdl">-</span></div></div>
+      <div class="flagl" id="flagL"><i></i><i></i><i></i></div><div class="flagr" id="flagR"><i></i><i></i><i></i></div>
+      <div class="screen" id="wscreen">
+        <div class="pg pg0 on"><div class="spd"><small>KM/H</small><span id="wspd">0</span></div><div class="gear" id="wgear">N</div><div class="dl"><small id="wdlL">DELTA</small><span id="wdl">-</span></div></div>
+        <div class="pg pg1"><div class="ptitle">ENERGY</div><div class="erow"><small>BATTERY</small><b id="eBatt">-</b></div><div class="erow"><small>DEPLOY / LAP</small><b id="eDep">-</b></div><div class="erow"><small>HARVEST / LAP</small><b id="eHarv">-</b></div><div class="erow"><small>OVERTAKE</small><b id="eOT">-</b></div></div>
+        <div class="pg pg2"><div class="ptitle">TYRES · <span id="tComp">-</span></div><div class="tgrid" id="tGrid"><span></span><span></span><span></span><span></span></div><div class="erow"><small>LIFE</small><b id="tLife">-</b><small>AGE</small><b id="tAge">-</b></div></div>
+        <div class="pgdots"><i></i><i></i><i></i></div>
+      </div>
       <div class="tyrew" id="wtyre"><i></i><i></i><i></i><i></i></div>
       <div class="modes"><span class="aero" id="mAero">STRAIGHT</span><span class="ot" id="mOT">OVERTAKE</span><span class="boost" id="mBoost">BOOST</span><span class="rech" id="mRech">RECHARGE</span><span class="lim" id="mLim">PIT</span></div></div>
     <canvas class="minimap" id="minimap" width="340" height="300"></canvas>`}
-    ${!ai ? `<div id="touch" class="${isTouch ? '' : 'hidden'}">
+    ${!ai ? `<div id="touch" class="${isTouch ? '' : 'hidden'} ${cfg.controls.lefty ? 'lefty' : ''} steer-${cfg.controls.steerMode}" style="--bs:${cfg.controls.btnScale}">
       <div class="pad steerpad" id="steerpad"><div class="knob" id="knob"></div><div class="lbl">STEER</div></div>
+      <div class="pad steerbtns"><button class="sbtn" id="sLeft">◀</button><button class="sbtn" id="sRight">▶</button></div>
+      <div class="pad tiltind" id="tiltind"><i id="tiltbar"></i><div class="lbl">TILT TO STEER</div></div>
       <div class="pad pedal brk" id="pBrk">BRAKE</div><div class="pad pedal thr" id="pThr">THROTTLE</div>
       <div class="pad tbtns"><button class="hbtn boost" id="tBoost">BOOST</button><button class="hbtn ot" id="tOT">OT</button><button class="hbtn rech" id="tRech">RECHG</button><button class="hbtn box" id="tBox">BOX</button></div>
+      ${!cfg.assist.autoGear ? '<div class="pad gearbtns"><button class="hbtn" id="gUp">▲</button><button class="hbtn" id="gDn">▼</button></div>' : ''}
     </div>
-    ${!isTouch ? `<div class="hint" id="kbhint">Space boost · O overtake · R recharge · P box · C camera</div>` : ''}` : ''}
+    ${!isTouch ? `<div class="hint" id="kbhint">${kbHint()}</div>` : ''}` : ''}
     ${pw ? buildPitwallHTML(g) : ''}${gs ? buildGrandstandHTML(g) : ''}
     <div id="pitmenuHost"></div><div id="pitgameHost"></div><div id="overlayHost"></div>
     <div class="rotate ${isTouch ? 'need' : ''}"><div><h2 style="font-style:italic">Turn your phone sideways</h2><p style="color:#9aa3ad">The cockpit and pit wall are built for landscape.</p></div></div>`;
@@ -62,12 +74,19 @@ export function buildHUD(g) {
   if (gs) setupGrandstand(g);
   else if (!pw) {
     $('#bCam').onclick = () => input.press('cam');
+    $('#bHelp').onclick = () => input.press('help');
+    if (isTouch) $('#wscreen').onclick = () => input.press('page');
     $('#bLine').onclick = () => input.press('line');
     $('#bPause').onclick = () => input.press('pause');
     setupTouch(g);
     // minimap base
     drawMinimapBase(g, $('#minimap'));
   } else setupPitwall(g);
+}
+
+function kbHint() {
+  const k = a => `<kbd>${label(a, 'kb')}</kbd>`;
+  return `${k('throttle')}${k('brake')}${k('left')}${k('right')} drive · ${k('boost')} boost · ${k('ot')} overtake · ${k('recharge')} recharge · ${k('box')} box · ${k('help')} all controls`;
 }
 
 export function setupTouch(g) {
@@ -91,7 +110,12 @@ export function setupTouch(g) {
   tb.addEventListener('touchend', () => input.touch.boost = false);
   const tap = (id, a) => $(id).addEventListener('touchstart', e => { input.press(a); e.preventDefault(); }, { passive: false });
   tap('#tOT', 'ot'); tap('#tRech', 'recharge'); tap('#tBox', 'box');
+  if ($('#gUp')) { tap('#gUp', 'shiftUp'); tap('#gDn', 'shiftDown'); }
+  const hold = (el, key) => { el.addEventListener('touchstart', e => { input.touch[key] = true; el.classList.add('down'); e.preventDefault(); }, { passive: false }); const up = () => { input.touch[key] = false; el.classList.remove('down'); }; el.addEventListener('touchend', up); el.addEventListener('touchcancel', up); };
+  hold($('#sLeft'), 'left'); hold($('#sRight'), 'right');
   input.settings.autoThrottle = cfg.assist.autoThrottle;
+  input.settings.steerSens = cfg.controls.steerSens; input.settings.steerMode = cfg.controls.steerMode;
+  if (cfg.controls.steerMode === 'tilt') input.enableTilt();
 }
 
 export function drawMinimapBase(g, cv) {
@@ -339,6 +363,37 @@ export function updateHUD(g, dt) {
   for (let i = 0; i < 15; i++) { const on = rr * 15 > i; const cl = !on ? '' : i < 5 ? 'g' : i < 10 ? 'r' : 'b'; if (leds[i]._c !== cl) { leds[i]._c = cl; leds[i].className = cl; } }
   const wt = $('#wtyre').children; const wl = 1 - p.tyre.wear; const wc = wl < 0.3 ? '#ff4d4d' : wl < 0.55 ? '#ffd400' : (p.tyre.temp < 0.6 ? '#3aa0ff' : '#19d35a');
   for (const i of wt) if (i._c !== wc) { i._c = wc; i.style.background = wc; }
+  // FIA marshalling lights on the wheel (GPS marshalling: the flag for the sector you're in)
+  {
+    let fl = '';
+    if (race.sc || race.vsc) fl = 'sc';
+    else if (p.blue) fl = 'blue';
+    else {
+      const T = g.T;
+      const near = race.cars.some(c => c !== p && (c.retired || c.stopped) && ((c.s - p.s + T.L) % T.L) < 450);
+      if (near) fl = 'yellow';
+      else if (race.control[0] && race.control[0].kind === 'green' && race.time - race.control[0].t < 6) fl = 'green';
+    }
+    if (race.phase === 'finished' || p.finished) fl = 'chq';
+    g.flagLocal = fl;
+    const cls = 'flag ' + fl;
+    for (const id of ['#flagL', '#flagR']) { const e = $(id); if (e._c !== cls) { e._c = cls; e.className = (id === '#flagL' ? 'flagl ' : 'flagr ') + cls; } }
+  }
+  // wheel display pages
+  {
+    const pg = g.wheelPage || 0;
+    if (g._pg !== pg) { g._pg = pg; const ps = $('#wscreen').querySelectorAll('.pg'); ps.forEach((e, k) => e.classList.toggle('on', k === pg)); $('#wscreen').querySelectorAll('.pgdots i').forEach((e, k) => e.classList.toggle('on', k === pg)); }
+    if (pg === 1) {
+      txt($('#eBatt'), p.battery.toFixed(2) + ' MJ'); txt($('#eDep'), (p.deployLap || 0).toFixed(2) + ' MJ'); txt($('#eHarv'), (p.harvestLap || 0).toFixed(2) + ' / ' + PHYS.harvestPerLap);
+      txt($('#eOT'), p.otActive ? 'ACTIVE' : race.otAvailable ? 'READY' : '-');
+    } else if (pg === 2) {
+      txt($('#tComp'), COMPOUNDS[p.tyre.c].name.toUpperCase());
+      const base = 70 + p.tyre.temp * 35; const cells = $('#tGrid').children; const offs = [3, 1, 6, 4];
+      for (let k = 0; k < 4; k++) { const tc = Math.round(base + offs[k] + (k % 2 ? -1 : 1) * (p.latG || 0) * 2); txt(cells[k], tc + '°'); cells[k].style.background = tc < 85 ? '#1f5fbf' : tc < 112 ? '#138a3c' : '#b8261a'; }
+      txt($('#tLife'), Math.round((1 - p.tyre.wear) * 100) + '%'); txt($('#tAge'), (p.tyre.age || 0) + ' L');
+    }
+  }
+  updateCoach(g, dt);
   $('#mAero').classList.toggle('on', p.straightMode);
   $('#mOT').classList.toggle('on', p.otActive); $('#mOT').classList.toggle('avail', race.otAvailable && !p.otActive);
   $('#mBoost').classList.toggle('on', p.boost);
@@ -349,6 +404,7 @@ export function updateHUD(g, dt) {
     $('#tOT').classList.toggle('on', p.otActive); $('#tOT').disabled = !(race.otAvailable || p.otActive);
     $('#tBoost').classList.toggle('on', p.boost); $('#tRech').classList.toggle('on', p.recharge); $('#tBox').classList.toggle('on', !!p.pitRequest);
     $('#touch').style.display = p.pit || g.pg ? 'none' : '';
+    if (cfg.controls.steerMode === 'tilt') { const tb = $('#tiltbar'); if (tb) tb.style.transform = `translateX(${(-p.steer * 45).toFixed(1)}%)`; }
   }
   const kh = $('#kbhint'); if (kh) kh.style.display = race.time > 25 ? 'none' : '';
 

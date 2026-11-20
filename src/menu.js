@@ -6,6 +6,8 @@ import { startGame } from './game';
 import { profile, saveProfile, levelInfo, PATTERNS, isUnlocked, helmetPreview } from './profile';
 import { launch, startQuick, newSeason, startRound, champTable, standings, POINTS } from './session';
 import { SCENARIOS, scenarioGoals } from './scenarios';
+import { guideHTML, bindGuide } from './controls.js';
+import { resetTips } from './coach.js';
 
 // ------------------------------------------------------------------ menu
 export function circuitSVG(id) {
@@ -26,7 +28,7 @@ export function seg(key, options, sub) {
 }
 
 let tab = 'play';
-const startAudio = () => { sound.start(); sound.setVolume(cfg.volume); try { if (isTouch) document.documentElement.requestFullscreen?.().catch(() => { }); } catch (e) { } };
+const startAudio = () => { sound.start(); sound.setVolume(cfg.volume); if (isTouch && cfg.controls.steerMode === 'tilt') input.enableTilt(); try { if (isTouch) document.documentElement.requestFullscreen?.().catch(() => { }); } catch (e) { } };
 
 export function renderMenu(t) {
   if (t) tab = t;
@@ -35,7 +37,7 @@ export function renderMenu(t) {
   m.innerHTML = `<div class="menu-inner">
     <div class="brand"><h1>LIGHTS <span>OUT</span></h1><div class="tag">Cockpit · Pit wall · Grandstand</div></div>
     <div class="topline">
-      <div class="tabs">${[['play', 'Play'], ['career', 'Career'], ['driver', 'Driver']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'sel' : ''}">${l}</button>`).join('')}</div>
+      <div class="tabs">${[['play', 'Play'], ['career', 'Career'], ['learn', 'How to play'], ['driver', 'Driver']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'sel' : ''}">${l}</button>`).join('')}</div>
       <div class="lvl"><canvas id="miniHelmet" width="64" height="48"></canvas><div><b>${cfg.name}</b> · Level ${li.level}<div class="xpbar sm"><i style="width:${(li.pct * 100).toFixed(0)}%"></i></div><small>${profile.xp} XP · next level at ${li.next}</small></div></div>
     </div>
     <div id="tabBody"></div>
@@ -45,6 +47,7 @@ export function renderMenu(t) {
   const body = $('#tabBody');
   if (tab === 'play') renderPlay(body);
   else if (tab === 'career') renderCareer(body);
+  else if (tab === 'learn') renderLearn(body);
   else renderDriver(body);
 }
 
@@ -60,7 +63,7 @@ function bindSegs(root) {
     const lbl = r.parentElement.querySelector('b'); if (lbl) lbl.textContent = r.dataset.range === 'gridPos' ? 'P' + r.value : r.value;
   });
 }
-const circuitCards = () => `<div class="circuits">${CIRCUITS.map(c => { const t = getTrack(c.id); return `<button class="circuit ${cfg.circuit === c.id ? 'sel' : ''}" data-circuit="${c.id}">${circuitSVG(c.id)}<div><b>${c.name}</b><small>${c.country} · ${(t.L / 1000).toFixed(2)} km · ${t.corners.length} turns</small><small>${c.blurb}</small></div></button>`; }).join('')}</div>`;
+const circuitCards = () => `<div class="circuits">${CIRCUITS.map(c => { const t = getTrack(c.id); return `<button class="circuit ${cfg.circuit === c.id ? 'sel' : ''}" data-circuit="${c.id}">${circuitSVG(c.id)}<div><b>${c.name}</b><small>${c.country} · ${(t.L / 1000).toFixed(2)} km · ${c.turns || t.corners.length} turns${t.elevRange > 20 ? ` · ${Math.round(t.elevRange)} m climb` : ''}${c.time === 'night' ? ' · night' : ''}</small><small>${c.blurb}</small></div></button>`; }).join('')}</div>`;
 
 // ---------------- PLAY ----------------
 function renderPlay(body) {
@@ -91,13 +94,14 @@ function renderPlay(body) {
     <div class="section"><h4>Display</h4><div class="opts">
       <div class="opt"><label>Graphics</label>${seg('quality', [['auto', 'Auto'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High']])}</div>
       <div class="opt"><label>Team radio voice</label>${seg('voice', [[true, 'On'], [false, 'Off']])}</div>
-      ${!isTouch ? `<div class="opt"><label>Rear-view mirror</label>${seg('mirror', [[true, 'On'], [false, 'Off']])}</div>` : ''}
+      <div class="opt"><label>Wing mirrors</label>${seg('mirror', [[true, 'On'], [false, 'Off']])}</div>
     </div></div>
     <div class="go"><button class="btn" id="start">${{ pitwall: 'Go to the pit wall', hotlap: 'Start hot lap', grandstand: 'Take your seat', race: cfg.quali ? 'Go to qualifying' : 'Start race' }[mode]}</button><span style="color:#9aa3ad;font-size:14px">${CIRCUITS.find(c => c.id === cfg.circuit).name} · ${mode === 'hotlap' ? 'unlimited laps' : cfg.laps + ' laps'} · your best lap ${fmt(profile.bests[cfg.circuit] ?? store.get('best_' + cfg.circuit, Infinity))}</span></div>
     ${helpHTML()}`;
   body.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { cfg.mode = b.dataset.mode; saveCfg(); renderMenu(); });
   body.querySelectorAll('[data-circuit]').forEach(b => b.onclick = () => { cfg.circuit = b.dataset.circuit; saveCfg(); renderMenu(); });
   bindTeams(body); bindSegs(body);
+  const tl = $('#toLearn'); if (tl) tl.onclick = e => { e.preventDefault(); renderMenu('learn'); };
   $('#start').onclick = () => {
     startAudio();
     cfg.mode = mode; saveCfg();
@@ -118,8 +122,24 @@ function assistsHTML() {
       ${isTouch ? `<div class="opt"><label>Auto-throttle (touch)</label>${seg('autoThrottle', [[true, 'On'], [false, 'Off']], 'assist')}</div>` : ''}
     </div></div>`;
 }
+let learnDev = null;
+function renderLearn(body) {
+  body.innerHTML = `<div class="section"><h4>How to play</h4>
+    <p class="help" style="margin-top:0">You drive a 2026-regulation car: about half its power is electric, so racing is as much about using the battery well as about braking points. The coach explains each tool the first time you need it.</p>
+    <div class="opts" style="margin-bottom:10px">
+      <div class="opt"><label>Coach tips during races</label>${seg('coach', [[true, 'On'], [false, 'Off']])}</div>
+      <div class="opt"><label>Halo pillar in the cockpit</label>${seg('halo', [['real', 'As drivers see it'], ['solid', 'Solid'], ['off', 'Hidden']])}</div>
+      <div class="opt"><label>Wing mirrors</label>${seg('mirrorSize', [['real', 'Real size'], ['large', 'Large']])}</div>
+      <div class="opt"><label>&nbsp;</label><button class="btn ghost sm" id="tipsAgain">Show all coach tips again</button></div>
+    </div>
+    <p class="help">Why a see-through halo? Drivers say the centre pillar barely registers in the car: each eye sees around it, but a single camera can't. "As drivers see it" fades the pillar to match.</p>
+    <div id="guideHost">${guideHTML({ device: learnDev || undefined })}</div></div>`;
+  bindSegs(body);
+  $('#tipsAgain').onclick = e => { resetTips(); e.target.textContent = 'Done: tips will show again'; };
+  bindGuide($('#guideHost'), d => { learnDev = d; input.rebind(); renderLearn(body); });
+}
 function helpHTML() {
-  return `<div class="help">${isTouch ? 'Touch: drag the left pad to steer, right pedals for throttle and brake. Buttons for Boost, Overtake, Recharge and Box. Play in landscape.' : `Keyboard: <kbd>↑</kbd>/<kbd>W</kbd> throttle · <kbd>↓</kbd>/<kbd>S</kbd> brake · <kbd>←</kbd><kbd>→</kbd> steer · <kbd>Space</kbd> boost (hold) · <kbd>O</kbd> overtake mode · <kbd>R</kbd> recharge mode · <kbd>P</kbd> box · <kbd>C</kbd> camera · <kbd>L</kbd> racing line · <kbd>Esc</kbd> pause. A gamepad works too (RT/LT, left stick, A boost, X overtake, B box, Y camera).`}</div>`;
+  return `<div class="help">${isTouch ? 'Play in landscape. Steer with the left pad (or tilt or buttons), pedals on the right.' : 'Keyboard, gamepad or touch.'} New to it? <a href="#" id="toLearn">See How to play</a> for every control, what Boost, Overtake and Recharge do, and the flags.</div>`;
 }
 
 // ---------------- CAREER ----------------

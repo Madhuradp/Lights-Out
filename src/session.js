@@ -80,11 +80,12 @@ export function onQualiDone(g, time, valid) {
 }
 
 // ---------------- championship ----------------
-const ROUNDS_SHORT = ['parco', 'riviera', 'sakura'];
-const ROUNDS_FULL = ['parco', 'riviera', 'sakura', 'riviera', 'sakura', 'parco'];
+// calendar order, like the real season
+const ROUNDS_SHORT = ['sakura', 'riviera', 'parco'];
+const ROUNDS_FULL = ['sakura', 'riviera', 'airfield', 'ardennes', 'parco', 'neon', 'serra'];
 export function newSeason(opts) {
   const list = opts.length === 'full' ? ROUNDS_FULL : ROUNDS_SHORT;
-  const rounds = list.map((c, i) => ({ circuit: c, weather: opts.weather === 'dry' ? 'dry' : (Math.random() < 0.65 ? 'dry' : Math.random() < 0.7 ? 'changeable' : 'wet'), name: CIRCUITS.find(x => x.id === c).name + (list.indexOf(c) !== i ? ' II' : '') }));
+  const rounds = list.map((c, i) => ({ circuit: c, weather: opts.weather === 'dry' ? 'dry' : (() => { const r = CIRCUITS.find(x => x.id === c).rain ?? 0.35; const u = Math.random(); return u > r ? 'dry' : u > r * 0.35 ? 'changeable' : 'wet'; })(), name: CIRCUITS.find(x => x.id === c).name + (list.indexOf(c) !== i ? ' II' : '') }));
   const field = pickField(cfg.team, Math.min(19, opts.opponents || 11));
   profile.champ = { started: Date.now(), rounds, round: 0, team: cfg.team, difficulty: cfg.difficulty, laps: opts.laps || 5, qualify: opts.qualify !== false, field, points: {}, teamPts: {}, results: [], done: false };
   for (const c of field.concat(['ME'])) profile.champ.points[c] = 0;

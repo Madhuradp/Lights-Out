@@ -330,3 +330,92 @@ button { font-family: var(--font); cursor: pointer; }
   .gs-pred { top: auto; bottom: 96px; right: 6px; }
   .lvl { min-width: 0; }
 }
+
+/* ---- wing mirrors (two, over the real housings) ---- */
+.mirror { position: absolute; border: 3px solid #101216; border-radius: 6px 6px 10px 10px; box-shadow: 0 2px 8px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.1); pointer-events: none; }
+
+/* ---- coach ---- */
+.coach { position: absolute; left: 50%; bottom: 210px; transform: translateX(-50%); max-width: min(620px, 92vw); background: rgba(10,12,16,.88); border: 1px solid rgba(255,255,255,.12); border-left: 4px solid #12e0ff; border-radius: 10px; padding: 10px 14px; font-size: 14px; line-height: 1.4; display: flex; gap: 10px; align-items: flex-start; pointer-events: none; animation: coachIn .25s ease-out; z-index: 5; }
+.coach .ctag { font-size: 10px; font-weight: 900; letter-spacing: 1.5px; color: #12e0ff; padding-top: 3px; }
+.coach kbd, .hint kbd { background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-family: var(--font); font-size: 12px; margin: 0 1px; }
+@keyframes coachIn { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (max-width: 900px), (max-height: 520px) { .coach { bottom: auto; top: 64px; font-size: 12px; padding: 7px 10px; } }
+
+/* ---- steering wheel: FIA flag lights and pages ---- */
+.wheel .flagl, .wheel .flagr { position: absolute; top: 40px; display: grid; gap: 5px; }
+.wheel .flagl { left: 60px; } .wheel .flagr { right: 76px; }
+.wheel .flagl i, .wheel .flagr i { width: 12px; height: 12px; border-radius: 3px; background: #1a1c20; }
+.wheel .flag.yellow i { background: #ffd400; box-shadow: 0 0 10px #ffd400; animation: blink .5s steps(2) infinite; }
+.wheel .flag.sc i { background: #ffd400; box-shadow: 0 0 10px #ffd400; animation: blink .9s steps(2) infinite; }
+.wheel .flag.blue i { background: #2a7bff; box-shadow: 0 0 10px #2a7bff; animation: blink .5s steps(2) infinite; }
+.wheel .flag.green i { background: #19d35a; box-shadow: 0 0 10px #19d35a; }
+.wheel .flag.chq i:nth-child(odd) { background: #fff; } .wheel .flag.chq i:nth-child(even) { background: #000; outline: 1px solid #fff; }
+@keyframes blink { 50% { opacity: .15; } }
+.wheel .screen { display: block; position: absolute; }
+.wheel .screen .pg { display: none; height: 100%; }
+.wheel .screen .pg.on { display: grid; }
+.wheel .screen .pg0 { grid-template-columns: 1fr 1.1fr 1fr; align-items: center; }
+.wheel .screen .pg1, .wheel .screen .pg2 { grid-auto-rows: min-content; gap: 2px; align-content: center; font-size: 13px; }
+.wheel .ptitle { font-size: 10px; letter-spacing: 1.5px; color: #12e0ff; font-weight: 800; }
+.wheel .erow { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; }
+.wheel .erow small { font-size: 9px; color: var(--mute); letter-spacing: .5px; }
+.wheel .tgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+.wheel .tgrid span { text-align: center; font-weight: 800; border-radius: 3px; font-size: 13px; padding: 1px 0; }
+.wheel .pgdots { position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; }
+.wheel .pgdots i { width: 5px; height: 5px; border-radius: 50%; background: #333; } .wheel .pgdots i.on { background: #ddd; }
+.wheel #wscreen { pointer-events: auto; }
+
+/* ---- touch: steering modes, left-handed, button size, gears ---- */
+#touch { --bs: 1; }
+#touch .steerbtns, #touch .tiltind { display: none; }
+#touch.steer-buttons .steerpad, #touch.steer-tilt .steerpad { display: none; }
+#touch.steer-buttons .steerbtns { display: flex; gap: 12px; left: max(12px, env(safe-area-inset-left)); bottom: 16px; }
+.sbtn { width: calc(96px * var(--bs)); height: calc(110px * var(--bs)); border-radius: 18px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.22); color: #fff; font-size: 30px; }
+.sbtn.down { filter: brightness(1.8); }
+#touch.steer-tilt .tiltind { display: block; left: max(12px, env(safe-area-inset-left)); bottom: 30px; width: 34vw; max-width: 280px; height: 12px; border-radius: 6px; background: rgba(255,255,255,0.1); }
+.tiltind i { position: absolute; left: 50%; top: -6px; width: 6px; height: 24px; margin-left: -3px; background: #12e0ff; border-radius: 3px; }
+.pedal { width: calc(92px * var(--bs)); height: calc(150px * var(--bs)); }
+.pedal.brk { height: calc(120px * var(--bs)); right: calc(max(12px, env(safe-area-inset-right)) + 104px * var(--bs)); }
+.tbtns { bottom: calc(180px * var(--bs)); }
+.tbtns .hbtn { padding: calc(10px * var(--bs)) calc(12px * var(--bs)); }
+.gearbtns { right: calc(max(12px, env(safe-area-inset-right)) + 216px * var(--bs)); bottom: 16px; display: grid; gap: 8px; }
+.gearbtns .hbtn { width: calc(60px * var(--bs)); height: calc(52px * var(--bs)); font-size: 18px; }
+#touch.lefty .steerpad, #touch.lefty .steerbtns, #touch.lefty .tiltind { left: auto; right: max(12px, env(safe-area-inset-right)); }
+#touch.lefty .pedal.thr { right: auto; left: max(12px, env(safe-area-inset-left)); }
+#touch.lefty .pedal.brk { right: auto; left: calc(max(12px, env(safe-area-inset-left)) + 104px * var(--bs)); }
+#touch.lefty .tbtns { right: auto; left: max(12px, env(safe-area-inset-left)); }
+#touch.lefty .gearbtns { right: auto; left: calc(max(12px, env(safe-area-inset-left)) + 216px * var(--bs)); }
+
+/* ---- how to play guide ---- */
+.guide h4 { margin: 18px 0 8px; font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--mute); }
+.guide .devtabs { margin-bottom: 12px; }
+.guide .keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.guide .kgroup { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); border-radius: 10px; padding: 10px 12px; }
+.guide .kgroup h5 { margin: 0 0 6px; font-size: 12px; color: #fff; letter-spacing: 1px; }
+.guide .krow { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 13px; align-items: center; }
+.guide .krow:last-child { border-bottom: 0; }
+.guide kbd { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; font-family: var(--font); font-size: 12px; }
+.guide .rebind { background: none; border: 1px solid rgba(255,255,255,.2); color: #cfd5dd; border-radius: 4px; font-size: 11px; padding: 1px 6px; margin-left: 6px; cursor: pointer; }
+.guide .kfoot { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; color: var(--mute); font-size: 12px; gap: 10px; flex-wrap: wrap; }
+.guide .tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.guide .tool { background: rgba(255,255,255,.04); border-radius: 10px; padding: 10px 12px; }
+.guide .tool .lamp { display: inline-block; color: #000; font-weight: 900; font-size: 11px; padding: 2px 7px; border-radius: 4px; letter-spacing: .5px; }
+.guide .tool small { display: block; color: var(--mute); margin-top: 6px; font-size: 12px; }
+.guide .tool p { margin: 6px 0 0; font-size: 13px; line-height: 1.45; color: #d7dce2; }
+.guide .wheelmap { display: grid; gap: 6px; font-size: 13px; color: #d7dce2; background: rgba(255,255,255,.04); border-radius: 10px; padding: 10px 12px; margin-top: 10px; }
+.guide .flags { display: grid; gap: 6px; font-size: 13px; color: #d7dce2; }
+.guide .flags i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px; margin-right: 8px; }
+.guide .tips { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.6; color: #d7dce2; }
+.guide .mute { color: var(--mute); font-size: 13px; line-height: 1.5; }
+.guide .opt { margin-bottom: 8px; }
+.btn.sm { padding: 6px 12px; font-size: 12px; }
+.hint { line-height: 1.8; max-width: calc(50vw - 250px); min-width: 220px; }
+.guide .krow > span:last-child { white-space: nowrap; flex-shrink: 0; }
+.guide .krow > span:first-child { min-width: 0; }
+@media (max-width: 900px), (max-height: 520px) {
+  .topbtns { top: auto; bottom: auto; right: auto; left: max(8px, env(safe-area-inset-left)); top: calc(100vh - 0px); }
+  .topbtns { position: absolute; left: auto; right: 176px; top: 6px; gap: 4px; }
+  .topbtns .hbtn { padding: 5px 8px; font-size: 11px; }
+  .topc { left: 46%; }
+  .coach { top: auto; bottom: 150px; max-width: 40vw; }
+}

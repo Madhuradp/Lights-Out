@@ -122,7 +122,10 @@ export class PlayerCar {
     const ClA = this.straightMode ? PHYS.ClAs : PHYS.ClA;
     const CdA = (this.straightMode ? PHYS.CdAs : PHYS.CdA) * (1 + 0.04 * this.damage);
     const down = 0.5 * rho * ClA * v * v;
-    const Fz = M * g + down;
+    // vertical load: compressions (Eau Rouge) push the car into the road, crests unload it
+    const vkHere = T.vk ? T.vk[i] : 0, gradeHere = T.grade ? T.grade[i] : 0;
+    this.vLoad = Math.max(0.35, Math.min(2.2, 1 + vkHere * v * v / g));
+    const Fz = M * g * this.vLoad + down;
     const aMax = mu * Fz / M;
 
     // --- energy / power unit ---
@@ -154,7 +157,7 @@ export class PlayerCar {
     const drag = 0.5 * rho * CdA * v * v;
     const Froll = PHYS.roll * M * g + surfDrag * M;
     const engineBrake = inp.throttle < 0.05 ? 2500 : 0;
-    let aLon = (Fdrive - Fbrake - drag - Froll - engineBrake) / M;
+    let aLon = (Fdrive - Fbrake - drag - Froll - engineBrake) / M - g * gradeHere;
     if (v <= 0.3 && aLon < 0) aLon = Math.max(aLon, -v / dt);
 
     // harvesting under braking / lift

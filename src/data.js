@@ -54,38 +54,8 @@ export function weatherGrip(cid, w) {
   return 1 - 0.62 * w; // slicks
 }
 
-// Circuits. Control points in metres (x, z, optional elevation y).
-// The start/finish line is at point 0, in the middle of the main straight, heading +x.
-export const CIRCUITS = [
-  {
-    id: 'parco',
-    name: 'Parco Veloce',
-    country: 'Italy-inspired parkland',
-    blurb: 'Temple of speed. Long straights, heavy braking into chicanes, flat-out sweepers.',
-    width: 14, runoff: 18, street: false, theme: 'park', time: 'afternoon',
-    defaultLaps: 8, refLapTime: 84,
-    points: [[0,0],[350,0],[700,0],[745,2],[762,22],[782,32],[810,30],[860,38],[950,55],[1100,80],[1260,170],[1350,300],[1380,450],[1390,560],[1420,610],[1480,620],[1560,640],[1620,700],[1640,780],[1610,840],[1540,860],[1400,880],[1100,920],[800,960],[700,975],[660,1010],[620,1030],[560,1020],[300,960],[50,900],[-120,860],[-250,800],[-330,700],[-350,560],[-330,420],[-280,260],[-240,120],[-180,30],[-100,0]],
-  },
-  {
-    id: 'riviera',
-    name: 'Riviera Harbour',
-    country: 'Mediterranean street circuit',
-    blurb: 'Walls everywhere. A hairpin, a tunnel and a harbour chicane. No room for mistakes.',
-    width: 11, runoff: 2, street: true, theme: 'harbour', time: 'midday',
-    defaultLaps: 8, refLapTime: 72,
-    tunnel: [0.40, 0.50],
-    points: [[0,0],[150,0],[300,-5],[360,-20],[380,-60],[375,-120],[390,-200],[430,-260],[480,-280],[530,-270],[560,-240],[565,-200],[540,-170],[500,-160],[470,-130],[480,-80],[530,-40],[600,-20],[700,10],[780,60],[820,130],[810,190],[760,230],[700,240],[660,260],[650,300],[600,330],[520,330],[400,320],[300,300],[230,290],[190,260],[160,230],[110,220],[60,240],[20,250],[-30,240],[-60,200],[-55,160],[-80,130],[-120,120],[-150,90],[-140,40],[-90,10],[-40,0]],
-  },
-  {
-    id: 'sakura',
-    name: 'Sakura Hills',
-    country: 'Hillside circuit in Japan-inspired countryside',
-    blurb: 'Flowing esses up the hill, a hairpin, a long spoon and a brave high-speed sweeper.',
-    width: 13, runoff: 14, street: false, theme: 'hills', time: 'golden',
-    defaultLaps: 8, refLapTime: 80,
-    points: [[0,0,0],[300,0,0],[550,0,2],[650,15,4],[700,60,6],[690,120,9],[640,150,11],[600,190,13],[620,240,15],[680,260,17],[720,300,18],[700,350,18],[640,370,17],[590,410,15],[600,470,13],[680,520,11],[800,540,10],[900,580,9],[930,650,8],[890,700,8],[820,700,8],[790,660,8],[760,640,8],[700,650,8],[600,700,7],[480,760,6],[350,790,5],[200,780,4],[60,740,3],[-60,700,3],[-160,640,4],[-200,560,6],[-170,480,8],[-240,420,9],[-300,360,8],[-310,280,6],[-260,220,4],[-220,140,2],[-200,60,1],[-140,10,0],[-70,0,0]],
-  },
-];
+// Circuits live in circuits.js (real outlines + elevation + corner names).
+export { CIRCUITS } from './circuits.js';
 
 export const DIFFICULTY = {
   rookie: { name: 'Rookie', skill: 0.915 },

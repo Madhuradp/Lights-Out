@@ -7,34 +7,52 @@ import { startGame } from './game';
 import { afterSession, endSession, startQuick, startRound, POINTS } from './session';
 import { SCENARIOS } from './scenarios';
 import { profile } from './profile';
+import { guideHTML, bindGuide } from './controls.js';
+import { resetTips } from './coach.js';
 
 // ------------------------------------------------------------------ pause / results
-export function showPause(g) {
+export function showPause(g, view, dev) {
   g.paused = true;
-  $('#overlayHost').innerHTML = `<div class="overlay"><div class="card" style="max-width:440px"><h2>Paused</h2>
+  const drv = cfg.mode !== 'pitwall' && cfg.mode !== 'grandstand';
+  if (view === 'controls') {
+    $('#overlayHost').innerHTML = `<div class="overlay"><div class="card" style="max-width:860px;max-height:88vh;overflow:auto"><h2>Controls</h2>${guideHTML({ device: dev, compact: false })}
+      <div style="display:flex;gap:8px;margin-top:14px"><button class="btn" id="cRes">Resume</button><button class="btn ghost" id="cBack">Back</button></div></div></div>`;
+    bindGuide($('#overlayHost'), d => { input.rebind(); showPause(g, 'controls', d); });
+    $('#cRes').onclick = () => { input.rebind(); hidePause(g); };
+    $('#cBack').onclick = () => { input.rebind(); showPause(g); };
+    return;
+  }
+  $('#overlayHost').innerHTML = `<div class="overlay"><div class="card" style="max-width:460px;max-height:90vh;overflow:auto"><h2>Paused</h2>
     <div style="display:grid;gap:8px">
       <button class="btn" id="pRes">Resume</button>
+      ${drv ? '<button class="btn ghost" id="pCtl">Controls &amp; how to drive</button>' : ''}
       <button class="btn ghost" id="pRst">Restart</button>
       <div class="opt" style="margin-top:6px"><label>Volume</label><input type="range" id="pVol" min="0" max="1" step="0.05" value="${cfg.volume}"></div>
       <div class="opt"><label>Haptics (vibration / gamepad rumble)</label>${seg('haptics', [[true, 'On'], [false, 'Off']])}</div>
       <div class="opt"><label>Team radio voice</label>${seg('voice', [[true, 'On'], [false, 'Off']])}</div>
-      ${cfg.mode !== 'pitwall' && cfg.mode !== 'grandstand' ? `<div class="opt"><label>Braking assist</label>${seg('brake', [[true, 'On'], [false, 'Off']], 'assist')}</div><div class="opt"><label>Steering assist</label>${seg('steer', [[true, 'On'], [false, 'Off']], 'assist')}</div>` : ''}
+      ${drv ? `<div class="opt"><label>Coach tips</label>${seg('coach', [[true, 'On'], [false, 'Off']])}</div>
+      <div class="opt"><label>Braking assist</label>${seg('brake', [[true, 'On'], [false, 'Off']], 'assist')}</div><div class="opt"><label>Steering assist</label>${seg('steer', [[true, 'On'], [false, 'Off']], 'assist')}</div>
+      <div class="opt"><label>Halo pillar (cockpit)</label>${seg('halo', [['real', 'As drivers see it'], ['solid', 'Solid'], ['off', 'Hidden']])}</div>
+      <div class="opt"><label>Wing mirrors</label>${seg('mirrorSize', [['real', 'Real size'], ['large', 'Large']])}</div>` : ''}
       ${cfg.mode === 'hotlap' ? '<button class="btn ghost" id="pEnd">End session (collect XP)</button>' : ''}
       <button class="btn ghost" id="pQuit">Quit to menu</button>
     </div></div></div>`;
   $('#pRes').onclick = () => hidePause(g);
+  const pc = $('#pCtl'); if (pc) pc.onclick = () => showPause(g, 'controls');
   $('#pRst').onclick = () => { $('#overlayHost').innerHTML = ''; startGame(); };
   $('#pQuit').onclick = () => quitToMenu();
   const pe = $('#pEnd'); if (pe) pe.onclick = () => { $('#overlayHost').innerHTML = ''; showResults(g); };
   $('#pVol').oninput = e => { cfg.volume = +e.target.value; sound.setVolume(cfg.volume); saveCfg(); };
   $('#overlayHost').querySelectorAll('.seg').forEach(sg => sg.querySelectorAll('button').forEach(b => b.onclick = () => {
-    let v = b.dataset.v === 'true'; if (sg.dataset.sub) cfg[sg.dataset.sub][sg.dataset.key] = v; else cfg[sg.dataset.key] = v;
+    let v = b.dataset.v; v = v === 'true' ? true : v === 'false' ? false : v;
+    if (sg.dataset.sub) cfg[sg.dataset.sub][sg.dataset.key] = v; else cfg[sg.dataset.key] = v;
     saveCfg(); haptics.enabled = cfg.haptics; sg.querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b));
   }));
 }
 export function hidePause(g) { g.paused = false; $('#overlayHost').innerHTML = ''; }
 export function quitToMenu(tab) {
   if (S.G) { S.G.dead = true; }
+  input.inGame = false;
   endSession();
   try { speechSynthesis.cancel(); } catch (e) { }
   sound.update({ rpm: 0, throttle: 0, v: 0, ers: 0, slip: 0, kerb: 0, grass: 0, rain: 0, crowd: 0, paused: true });

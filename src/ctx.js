@@ -11,9 +11,11 @@ export const DEFAULTS = {
   team: 'aurora', name: 'You', code: 'YOU', num: 1, incidents: 'normal', pitGame: true, quality: 'auto', voice: true,
   assist: { brake: isTouch, line: 'brake', tc: true, abs: true, autoGear: true, autoThrottle: false, steer: false },
   camera: 'cockpit', volume: 0.8, haptics: true, quali: false, mirror: true, seasonLength: 'short', seasonLaps: 5, seasonQuali: true, seasonWeather: 'real',
+  keys: {}, controls: { steerMode: 'pad', steerSens: 1, lefty: false, btnScale: 1 }, coach: true, halo: 'real', mirrorSize: 'large',
 };
 export const cfg = Object.assign({}, DEFAULTS, store.get('cfg', {}));
 cfg.assist = Object.assign({}, DEFAULTS.assist, cfg.assist || {});
+cfg.controls = Object.assign({}, DEFAULTS.controls, cfg.controls || {});
 // session overrides (championship rounds, scenarios...) are applied to cfg temporarily and never saved
 export const saveCfg = () => store.set('cfg', S.backup ? Object.assign({}, cfg, S.backup) : cfg);
 export const isSolo = () => cfg.mode === 'hotlap' || cfg.mode === 'quali';

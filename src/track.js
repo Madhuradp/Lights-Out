@@ -33,20 +33,61 @@ export function buildTrack(circ) {
     runoff: circ.runoff, street: circ.street,
   };
 
-  // ---- Racing line (iterative relaxation toward minimum curvature) ----
-  const lim = hw - 1.6;
+  // ---- Elevation: gradient (rise/run) and vertical curvature (1/m, + = compression) ----
+  {
+    const ys = Float32Array.from(cy); smooth(ys, N, 4, 3);
+    const grade = new Float32Array(N), vk = new Float32Array(N);
+    const w = Math.max(2, Math.round(12 / ds));
+    for (let i = 0; i < N; i++) grade[i] = (ys[(i + w) % N] - ys[(i - w + N) % N]) / (2 * w * ds);
+    for (let i = 0; i < N; i++) vk[i] = (grade[(i + w) % N] - grade[(i - w + N) % N]) / (2 * w * ds);
+    smooth(vk, N, 3, 3);
+    T.grade = grade; T.vk = vk;
+    let lo = 1e9, hi = -1e9; for (let i = 0; i < N; i++) { lo = Math.min(lo, cy[i]); hi = Math.max(hi, cy[i]); }
+    T.elevRange = hi - lo;
+  }
+
+  // ---- Bridges: where the lap really crosses itself (figure-eight), mark the upper road ----
+  {
+    const bridge = new Uint8Array(N);
+    const gap = Math.round(300 / ds), span = Math.round((hw * 2 + 30) / ds);
+    for (let i = 0; i < N; i++) {
+      const i2 = (i + 1) % N;
+      for (let j = i + gap; j < N; j++) {
+        if (N - (j - i) < gap) break;
+        const j2 = (j + 1) % N;
+        const d1x = cx[i2] - cx[i], d1z = cz[i2] - cz[i], d2x = cx[j2] - cx[j], d2z = cz[j2] - cz[j];
+        const den = d1x * d2z - d1z * d2x; if (Math.abs(den) < 1e-9) continue;
+        const ex = cx[j] - cx[i], ez = cz[j] - cz[i];
+        const u = (ex * d2z - ez * d2x) / den, w = (ex * d1z - ez * d1x) / den;
+        if (u < 0 || u > 1 || w < 0 || w > 1) continue;
+        const up = cy[i] > cy[j] ? i : j;
+        if (Math.abs(cy[i] - cy[j]) < 5) continue; // a level crossing would be a collision course: ignore
+        for (let k = -span; k <= span; k++) bridge[(up + k + N) % N] = 1;
+      }
+    }
+    T.bridge = bridge; T.hasBridge = bridge.some(b => b);
+  }
+
+  // ---- Racing line: minimum curvature inside the track limits ----
+  // Projected gradient descent on sum |p[i-k] - 2p[i] + p[i+k]|^2 (multi-scale k), which is
+  // what a driver does: start wide, clip the apex, run out to the edge on exit.
+  const lim = hw - 1.4;
   const d = new Float32Array(N);
   const px = new Float32Array(N), pz = new Float32Array(N);
-  const sched = [];
-  for (let k = 40; k >= 2; k = Math.floor(k * 0.8)) for (let r = 0; r < 14; r++) sched.push(k);
-  for (const k of sched) {
-    for (let i = 0; i < N; i++) { px[i] = cx[i] + d[i] * nx[i]; pz[i] = cz[i] + d[i] * nz[i]; }
-    for (let i = 0; i < N; i++) {
-      const a = (i - k + N) % N, b = (i + k) % N;
-      const mx = (cx[a] + d[a] * nx[a] + cx[b] + d[b] * nx[b]) / 2;
-      const mz = (cz[a] + d[a] * nz[a] + cz[b] + d[b] * nz[b]) / 2;
-      const t = (mx - cx[i]) * nx[i] + (mz - cz[i]) * nz[i];
-      d[i] = Math.max(-lim, Math.min(lim, d[i] + (t - d[i]) * 0.6));
+  const Dx = new Float32Array(N), Dz = new Float32Array(N);
+  for (let k = Math.max(2, Math.round(60 / ds)); k >= 1; k = k > 2 ? Math.floor(k * 0.75) : k - 1) {
+    const iters = k > 4 ? 40 : 80;
+    for (let it = 0; it < iters; it++) {
+      for (let i = 0; i < N; i++) { px[i] = cx[i] + d[i] * nx[i]; pz[i] = cz[i] + d[i] * nz[i]; }
+      for (let i = 0; i < N; i++) {
+        const a2 = (i - k + N) % N, b2 = (i + k) % N;
+        Dx[i] = px[a2] - 2 * px[i] + px[b2]; Dz[i] = pz[a2] - 2 * pz[i] + pz[b2];
+      }
+      for (let i = 0; i < N; i++) {
+        const a2 = (i - k + N) % N, b2 = (i + k) % N;
+        const gx = Dx[a2] - 2 * Dx[i] + Dx[b2], gz = Dz[a2] - 2 * Dz[i] + Dz[b2];
+        d[i] = Math.max(-lim, Math.min(lim, d[i] - 0.055 * (gx * nx[i] + gz * nz[i])));
+      }
     }
   }
   smooth(d, N, 3, 4);
@@ -79,9 +120,16 @@ export function buildTrack(circ) {
 
   // ---- Corners ----
   T.corners = findCorners(T);
+  if (circ.cornerNames) for (const c of T.corners) {
+    let best = null, bo = 0;
+    const a = c.sStart / L, b = (c.sEnd < c.sStart ? c.sEnd + L : c.sEnd) / L;
+    for (const nm of circ.cornerNames) { const o = Math.min(b, nm.f1 + 0.004) - Math.max(a, nm.f0 - 0.004); if (o > bo) { bo = o; best = nm; } }
+    if (best) c.name = best.name;
+  }
 
   // ---- Speed profile for the reference grip ----
   T.profile = computeProfile(T, PHYS.mu0, 0.42);
+  { let tl = 0; for (let i = 0; i < N; i++) tl += ds / Math.max(5, T.profile[i]); T.idealLap = tl; if (!circ.refLapTime) circ.refLapTime = Math.round(tl * 1.16); }
 
   // ---- Kerbs ----
   const kerbL = new Uint8Array(N), kerbR = new Uint8Array(N);
@@ -97,7 +145,7 @@ export function buildTrack(circ) {
 
   // ---- Pit lane along the main straight ----
   {
-    const straight = i => Math.abs(kc[(i + N) % N]) < 0.0035;
+    const straight = i => Math.abs(kc[(i + N) % N]) < (circ.pitCurv || 0.0035);
     let a = 0; while (straight(a - 1) && a > -N / 3) a--;
     let b = 0; while (straight(b + 1) && b < N / 3) b++;
     const sA = a * ds, sB = b * ds; // sA negative
@@ -213,19 +261,25 @@ function findCorners(T) {
 // Speed profile along the racing line for a given grip (mu) and average ERS deployment.
 export function computeProfile(T, mu, ers) {
   const { N, ds, lk, zone } = T;
+  const grade = T.grade || new Float32Array(N), vk = T.vk || new Float32Array(N);
   const v = new Float32Array(N);
-  for (let i = 0; i < N; i++) v[i] = cornerSpeed(Math.abs(lk[i]), mu);
+  for (let i = 0; i < N; i++) {
+    v[i] = cornerSpeed(Math.abs(lk[i]), mu);
+    // compressions add load (more grip), crests take it away
+    const f = Math.max(0.55, Math.min(1.5, 1 + vk[i] * v[i] * v[i] / 9.81));
+    if (f !== 1) v[i] = cornerSpeed(Math.abs(lk[i]), mu * f);
+  }
   // forward (acceleration), two laps for closure
   for (let n = 1; n < N * 2; n++) {
     const i = n % N, p = (n - 1) % N;
-    const a = accelLimit(v[p], mu, zone[p] === 1, ers);
+    const a = accelLimit(v[p], mu, zone[p] === 1, ers) - 9.81 * grade[p];
     const vn = Math.sqrt(Math.max(0, v[p] * v[p] + 2 * a * ds));
     if (vn < v[i]) v[i] = vn;
   }
   // backward (braking)
   for (let n = N * 2; n > 0; n--) {
     const i = n % N, nx = (n + 1) % N;
-    const b = brakeLimit(v[nx], mu);
+    const b = Math.max(1, brakeLimit(v[nx], mu) + 9.81 * grade[i]);
     const vb = Math.sqrt(v[nx] * v[nx] + 2 * b * ds);
     if (vb < v[i]) v[i] = vb;
   }

@@ -28,7 +28,7 @@ function write(js) {
   console.log(`built dist/lights-out.html (${(fs.statSync('dist/lights-out.html').size / 1024).toFixed(0)} KB) and dist/web/`);
 }
 
-const opts = { entryPoints: ['src/main.js'], bundle: true, minify, format: 'iife', write: false, target: 'es2019', legalComments: 'none' };
+const opts = { entryPoints: ['src/main.js'], bundle: true, minify, format: 'iife', write: false, target: 'es2019', legalComments: 'eof' };
 
 if (args.includes('--serve')) {
   const ctx = await context({ ...opts, plugins: [{ name: 'out', setup(b) { b.onEnd(r => { if (!r.errors.length) write(r.outputFiles[0].text); }); } }] });
