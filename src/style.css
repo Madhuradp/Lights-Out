@@ -419,3 +419,74 @@ button { font-family: var(--font); cursor: pointer; }
   .topc { left: 46%; }
   .coach { top: auto; bottom: 150px; max-width: 40vw; }
 }
+
+/* ---- track map: top right, above everything else on that side ---- */
+.mapbox { position: absolute; right: max(10px, env(safe-area-inset-right)); top: 10px; width: 300px; background: rgba(10,12,16,0.72); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; backdrop-filter: blur(6px); overflow: hidden; }
+.mapbox.medium { width: 240px; } .mapbox.small { width: 190px; }
+.mapbox .maphd { display: flex; flex-direction: column; gap: 1px; padding: 6px 10px 0; font-size: 10px; letter-spacing: 1px; color: var(--mute); }
+.mapbox .maphd b { font-size: 10px; color: #cfd5dd; letter-spacing: 1.5px; }
+.mapbox #mnext { font-size: 13px; color: #fff; font-weight: 800; letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mapbox #mnext small { color: #12e0ff; font-weight: 700; margin-left: 4px; }
+.mapbox #mnext .dir { font-style: normal; color: #12e0ff; }
+.mapbox .minimap { position: static; display: block; width: 100%; height: auto; aspect-ratio: 600 / 460; background: none; border-radius: 0; }
+.lapinfo { top: calc(var(--mapH, 260px) + 18px); }
+.tyrebox { top: calc(var(--mapH, 260px) + 146px); }
+.topbtns { right: calc(max(10px, env(safe-area-inset-right)) + var(--mapW, 300px) + 10px); }
+.hbtn.snd { display: inline-grid; place-items: center; padding: 6px 10px; }
+.hbtn.snd.muted { color: #ff6b6b; border-color: rgba(255,107,107,.6); }
+
+/* ---- sound panel ---- */
+.soundpanel { position: absolute; top: 54px; right: calc(max(10px, env(safe-area-inset-right)) + var(--mapW, 300px) + 10px); width: 290px; background: rgba(12,14,20,0.94); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 12px 14px; pointer-events: auto; z-index: 30; backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+.soundpanel .shd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; letter-spacing: 1.5px; font-size: 12px; }
+.soundpanel .srow { display: grid; grid-template-columns: 1fr 120px; align-items: center; gap: 10px; padding: 5px 0; }
+.soundpanel label { font-size: 13px; font-weight: 700; display: flex; flex-direction: column; } .soundpanel label small { font-weight: 400; color: var(--mute); font-size: 11px; }
+.soundpanel input[type=range] { width: 100%; accent-color: #12e0ff; }
+.soundpanel .sfoot { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; color: var(--mute); font-size: 11px; }
+.hbtn.sm { padding: 5px 10px; font-size: 12px; }
+
+/* ---- keyboard controls strip (live: lights up with what you're using) ---- */
+.ctlstrip { position: absolute; left: max(10px, env(safe-area-inset-left)); bottom: 12px; display: flex; flex-direction: column; gap: 5px; font-size: 12px; pointer-events: none; }
+.ctlstrip .cs { display: flex; align-items: center; gap: 4px; background: rgba(10,12,16,0.72); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 4px 8px; color: #cfd5dd; width: max-content; transition: background .15s, border-color .15s, opacity .3s; }
+.ctlstrip .cs span { font-weight: 800; letter-spacing: .5px; margin-left: 4px; font-size: 11px; }
+.ctlstrip kbd { background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-family: var(--font); font-size: 11px; min-width: 18px; text-align: center; }
+.ctlstrip .bar { display: inline-block; width: 46px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.15); overflow: hidden; margin-left: 6px; position: relative; }
+.ctlstrip .bar i { position: absolute; inset: 0; background: linear-gradient(90deg, #0a7fff, #12e0ff); transform-origin: left; }
+.ctlstrip .boost.on { background: #ff8a00; color: #000; border-color: #ff8a00; } .ctlstrip .boost.low span { color: #ff6b6b; }
+.ctlstrip .ot.ready { border-color: #12e0ff; color: #12e0ff; box-shadow: 0 0 12px rgba(18,224,255,.45); animation: otPulse 1s ease-in-out infinite; }
+.ctlstrip .ot.on { background: #12e0ff; color: #011; } .ctlstrip .ot.dim { opacity: .55; }
+.ctlstrip .rech.on { background: #19d35a; color: #000; border-color: #19d35a; }
+.ctlstrip .box.on { background: var(--red); color: #fff; border-color: var(--red); }
+.ctlstrip.compact .drive, .ctlstrip.compact .more { display: none; }
+@keyframes otPulse { 50% { box-shadow: 0 0 2px rgba(18,224,255,.2); } }
+
+/* ---- touch: clearer buttons and pedals ---- */
+.tbtns { display: flex; gap: calc(6px * var(--bs)); }
+.tbtn { pointer-events: auto; position: relative; overflow: hidden; display: grid; place-items: center; align-content: center; gap: 1px; min-width: calc(66px * var(--bs)); height: calc(48px * var(--bs)); padding: 0 calc(8px * var(--bs)); border-radius: 12px; background: rgba(12,14,20,0.66); border: 1.5px solid rgba(255,255,255,0.22); color: #fff; backdrop-filter: blur(6px); font-family: var(--font); }
+.tbtn b { font-size: calc(11px * var(--bs)); letter-spacing: .8px; position: relative; } .tbtn small { font-size: calc(9px * var(--bs)); opacity: .75; position: relative; }
+.tbtn .fill { position: absolute; left: 0; bottom: 0; height: 4px; width: 100%; background: linear-gradient(90deg, #0a7fff, #12e0ff); transform-origin: left; }
+.tbtn.boost { border-color: rgba(255,138,0,.7); } .tbtn.boost.on { background: #ff8a00; color: #000; } .tbtn.boost.low { opacity: .5; }
+.tbtn.ot { border-color: rgba(18,224,255,.4); color: #9fefff; } .tbtn.ot:disabled { opacity: .45; }
+.tbtn.ot.ready { border-color: #12e0ff; color: #12e0ff; animation: otPulse 1s ease-in-out infinite; box-shadow: 0 0 14px rgba(18,224,255,.5); }
+.tbtn.ot.on { background: #12e0ff; color: #011; }
+.tbtn.rech { border-color: rgba(25,211,90,.55); } .tbtn.rech.on { background: #19d35a; color: #000; }
+.tbtn.box { border-color: rgba(255,207,0,.6); } .tbtn.box.on { background: var(--red); border-color: var(--red); }
+.pedal { overflow: hidden; }
+.pedal span { position: relative; z-index: 1; }
+.pedal .pfill { position: absolute; left: 0; right: 0; bottom: 0; height: 100%; transform-origin: bottom; transform: scaleY(0); }
+.pedal.thr .pfill { background: rgba(25,211,90,0.45); } .pedal.brk .pfill { background: rgba(225,6,0,0.5); }
+
+@media (max-width: 900px), (max-height: 520px) {
+  .mapbox, .mapbox.medium, .mapbox.large { display: block; width: 196px; top: 6px; right: max(6px, env(safe-area-inset-right)); }
+  .mapbox .maphd b { display: none; } .mapbox .maphd { padding: 4px 8px 0; } .mapbox #mnext { font-size: 11px; }
+  .lapinfo { top: 40px; right: calc(max(6px, env(safe-area-inset-right)) + 204px); width: 150px; }
+  .topbtns { top: 6px; right: calc(max(6px, env(safe-area-inset-right)) + 204px); }
+  .soundpanel { top: 40px; right: 8px; width: 270px; max-height: 80vh; overflow: auto; }
+  .topc { left: 42%; }
+}
+@media (max-width: 900px), (max-height: 520px) {
+  .mapbox, .mapbox.medium, .mapbox.large { width: 178px; }
+  .lapinfo { right: calc(max(6px, env(safe-area-inset-right)) + 186px); width: 136px; }
+  .topbtns { right: calc(max(6px, env(safe-area-inset-right)) + 186px); }
+  .rc { top: 118px; }
+  .coach { left: max(12px, env(safe-area-inset-left)); transform: none; animation: none; bottom: 146px; max-width: 38vw; }
+}

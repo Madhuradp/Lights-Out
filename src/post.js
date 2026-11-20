@@ -32,7 +32,7 @@ export function makePost(renderer, scene, camera, quality) {
   const rt = new THREE.WebGLRenderTarget(size.x * renderer.getPixelRatio(), size.y * renderer.getPixelRatio(), { type: THREE.HalfFloatType, samples: quality === 'high' ? 4 : 2 });
   const composer = new EffectComposer(renderer, rt);
   composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), quality === 'high' ? 0.28 : 0.2, 0.45, 0.96);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), quality === 'high' ? 0.3 : 0.22, 0.45, 1.35);
   composer.addPass(bloom);
   let speed = null;
   if (quality === 'high') { speed = new ShaderPass(SpeedShader); composer.addPass(speed); }

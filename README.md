@@ -30,6 +30,8 @@ It runs in any modern browser on PC and mobile. No install needed.
 
 ## Controls
 
+In a race: the track map is top right (corner numbers, names, braking points, next corner), and the speaker button opens the sound mixer (engines, effects, crowd, radio, mute; M mutes).
+
 Keyboard keys can be remapped in **How to play** (menu tab) or from the pause screen. Press **H** in a race for the controls card.
 
 | | Keyboard (default) | Gamepad | Touch |
@@ -90,6 +92,8 @@ src/
   cars.js         car models and the safety car
   particles.js    spray, smoke, sparks, debris
   audio.js        synthesised sound + haptics
+  envmaps.js      generated real-sky reflections (tools/envgen.py)
+  samples.js      recorded tyre skid and impact sounds
   input.js        keyboard (remappable), gamepad and touch (drag, tilt, buttons)
   controls.js     key bindings, device labels, How to play guide
   coach.js        in-race tips shown the first time each situation comes up
@@ -114,3 +118,6 @@ They expect Chrome at /usr/bin/google-chrome and `pip install playwright`.
 
 ### Graphics quality
 Low = no shadows/post FX (phones). Medium = shadows + bloom. High = sharper shadows, speed blur, lens flare.
+
+## Assets and credits
+See docs/ASSETS.md: track outlines (MIT), Poly Haven skies (CC0), Kenney sounds (CC0), three.js (MIT).

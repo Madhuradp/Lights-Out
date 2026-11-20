@@ -28,7 +28,7 @@ export function seg(key, options, sub) {
 }
 
 let tab = 'play';
-const startAudio = () => { sound.start(); sound.setVolume(cfg.volume); if (isTouch && cfg.controls.steerMode === 'tilt') input.enableTilt(); try { if (isTouch) document.documentElement.requestFullscreen?.().catch(() => { }); } catch (e) { } };
+const startAudio = () => { sound.start(); sound.setVolume(cfg.volume); sound.setMix(cfg.mix, cfg.muted); if (isTouch && cfg.controls.steerMode === 'tilt') input.enableTilt(); try { if (isTouch) document.documentElement.requestFullscreen?.().catch(() => { }); } catch (e) { } };
 
 export function renderMenu(t) {
   if (t) tab = t;
@@ -133,7 +133,9 @@ function renderLearn(body) {
       <div class="opt"><label>&nbsp;</label><button class="btn ghost sm" id="tipsAgain">Show all coach tips again</button></div>
     </div>
     <p class="help">Why a see-through halo? Drivers say the centre pillar barely registers in the car: each eye sees around it, but a single camera can't. "As drivers see it" fades the pillar to match.</p>
-    <div id="guideHost">${guideHTML({ device: learnDev || undefined })}</div></div>`;
+    <div id="guideHost">${guideHTML({ device: learnDev || undefined })}</div>
+    <h4 style="margin-top:22px">Credits</h4>
+    <p class="help" style="margin-top:0">Track outlines: bacinger/f1-circuits (MIT). Sky lighting: Poly Haven HDRIs (CC0) via pmndrs/assets. Tyre and impact sounds: Kenney and Landeplage (CC0). 3D engine: three.js (MIT). Teams, drivers and circuit names are fictional.</p></div>`;
   bindSegs(body);
   $('#tipsAgain').onclick = e => { resetTips(); e.target.textContent = 'Done: tips will show again'; };
   bindGuide($('#guideHost'), d => { learnDev = d; input.rebind(); renderLearn(body); });

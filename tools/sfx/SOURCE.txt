@@ -1,0 +1,2 @@
+skid.ogg and impact.ogg are from github.com/KenneyNL/Starter-Kit-Racing.
+Assets in that kit are CC0 (README); skid sound by Landeplage (CC0). The kit's code is MIT (licence file alongside).

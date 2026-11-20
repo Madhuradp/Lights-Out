@@ -99,7 +99,9 @@ export function speak(text, from) {
     const vs = speechSynthesis.getVoices();
     const v = vs.find(v => /en-GB/i.test(v.lang)) || vs.find(v => /^en/i.test(v.lang));
     if (v) u.voice = v;
-    u.rate = from === 'drv' ? 1.15 : 1.08; u.pitch = from === 'drv' ? 1.1 : 0.85; u.volume = 0.9;
+    u.rate = from === 'drv' ? 1.15 : 1.08; u.pitch = from === 'drv' ? 1.1 : 0.85;
+    u.volume = cfg.muted ? 0 : Math.min(1, 0.9 * (cfg.mix?.radio ?? 1) * Math.min(1, cfg.volume * 1.4));
+    if (u.volume <= 0.01) return;
     speechSynthesis.speak(u);
   } catch (e) { }
 }

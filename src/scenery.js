@@ -35,7 +35,69 @@ function canvasTex(w, h, draw, repeat = true) {
 }
 function rnd(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
 
-export function makeTextures() {
+// Asphalt from one height field: aggregate stones in binder. Gives matching colour, surface
+// relief (normal map) and roughness (polished stones shine, binder is matte), all tileable.
+function asphaltMaps(size) {
+  const R = rnd(11), N = size, h = new Float32Array(N * N), tone = new Float32Array(N * N), pol = new Float32Array(N * N);
+  // stones
+  const nStones = Math.round(N * N / 7);
+  for (let k = 0; k < nStones; k++) {
+    const cx = R() * N, cy = R() * N, r = 0.55 + Math.pow(R(), 2.6) * 1.9, ht = 0.35 + R() * 0.65, tn = 0.8 + R() * 0.35, pl = R() < 0.25 ? 1 : 0.3;
+    const x0 = Math.floor(cx - r - 1), x1 = Math.ceil(cx + r + 1), y0 = Math.floor(cy - r - 1), y1 = Math.ceil(cy + r + 1);
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const dx = x - cx, dy = y - cy, d = Math.sqrt(dx * dx + dy * dy) / r; if (d > 1) continue;
+      const i = ((y + N) % N) * N + ((x + N) % N); const v = ht * Math.sqrt(1 - d * d);
+      if (v > h[i]) { h[i] = v; tone[i] = tn; pol[i] = pl; }
+    }
+  }
+  // binder noise + low-frequency tone (tileable sine sums)
+  const lf = (x, y) => 0.5 + 0.25 * Math.sin(x / N * 6.283 * 2 + 1.3) * Math.cos(y / N * 6.283 * 3 + 0.4) + 0.25 * Math.sin((x + y) / N * 6.283 * 3 + 2.1);
+  const alb = document.createElement('canvas'); alb.width = alb.height = N; const ga = alb.getContext('2d'); const ia = ga.createImageData(N, N);
+  const nrm = document.createElement('canvas'); nrm.width = nrm.height = N; const gn = nrm.getContext('2d'); const inn = gn.createImageData(N, N);
+  const rgh = document.createElement('canvas'); rgh.width = rgh.height = N; const gr = rgh.getContext('2d'); const ir = gr.createImageData(N, N);
+  for (let i = 0; i < N * N; i++) if (h[i] === 0) { h[i] = R() * 0.12; tone[i] = 0.55 + R() * 0.1; }
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const i = y * N + x, j = i * 4;
+    const l = lf(x, y);
+    const base = h[i] > 0.15 ? 84 * tone[i] : 66 * tone[i] / 0.6;
+    const v = Math.max(20, Math.min(200, base * (0.9 + 0.2 * l)));
+    ia.data[j] = v; ia.data[j + 1] = v; ia.data[j + 2] = v * 1.03; ia.data[j + 3] = 255;
+    const hl = h[y * N + (x - 1 + N) % N], hr = h[y * N + (x + 1) % N], hu = h[((y - 1 + N) % N) * N + x], hd = h[((y + 1) % N) * N + x];
+    let nx = (hl - hr) * 1.4, ny = (hu - hd) * 1.4, nz = 1; const ln = Math.hypot(nx, ny, nz); nx /= ln; ny /= ln; nz /= ln;
+    inn.data[j] = (nx * 0.5 + 0.5) * 255; inn.data[j + 1] = (ny * 0.5 + 0.5) * 255; inn.data[j + 2] = (nz * 0.5 + 0.5) * 255; inn.data[j + 3] = 255;
+    const rv = h[i] > 0.15 ? (pol[i] > 0.5 ? 0.55 : 0.8) : 0.97; ir.data[j] = ir.data[j + 1] = ir.data[j + 2] = rv * 255; ir.data[j + 3] = 255;
+  }
+  ga.putImageData(ia, 0, 0); gn.putImageData(inn, 0, 0); gr.putImageData(ir, 0, 0);
+  const mk = (c, srgb) => { const tx = new THREE.CanvasTexture(c); tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.anisotropy = 8; if (srgb) tx.colorSpace = THREE.SRGBColorSpace; return tx; };
+  return { map: mk(alb, true), normal: mk(nrm), rough: mk(rgh) };
+}
+
+// Decode an RGBE PNG sky (see tools/envgen.py) into a half-float equirect texture, rotated so
+// the photo's sun sits where the game's sun is.
+async function loadHDRIEnv(name, sunDir) {
+  try {
+    const { ENVMAPS } = await import('./envmaps.js');
+    const e = ENVMAPS[name]; if (!e) return null;
+    const img = new Image(); img.src = e.uri; await img.decode();
+    const W = img.width, H = img.height; const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0); const px = g.getImageData(0, 0, W, H).data;
+    // three's equirect: u = atan2(dir.z, dir.x) / 2pi + 0.5. Shift columns so the photo sun lands on ours.
+    const phiPhoto = e.sunAz - Math.PI, phiGame = Math.atan2(sunDir.z, sunDir.x);
+    const shift = Math.round(((phiGame - phiPhoto) / (2 * Math.PI)) * W);
+    const data = new Uint16Array(W * H * 4); const toH = THREE.DataUtils.toHalfFloat;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const si = (y * W + x) * 4; const ex = px[si + 3]; const f = ex ? Math.pow(2, ex - 128) / 255 : 0;
+      const dx = ((x + shift) % W + W) % W, dy = H - 1 - y; const di = (dy * W + dx) * 4;
+      data[di] = toH(px[si] * f); data[di + 1] = toH(px[si + 1] * f); data[di + 2] = toH(px[si + 2] * f); data[di + 3] = toH(1);
+    }
+    const tx = new THREE.DataTexture(data, W, H, THREE.RGBAFormat, THREE.HalfFloatType);
+    tx.mapping = THREE.EquirectangularReflectionMapping; tx.colorSpace = THREE.LinearSRGBColorSpace;
+    tx.magFilter = tx.minFilter = THREE.LinearFilter; tx.needsUpdate = true;
+    return tx;
+  } catch (err) { return null; }
+}
+
+export function makeTextures(quality) {
   const R = rnd(7);
   const asphalt = canvasTex(256, 256, (g, w, h) => {
     g.fillStyle = '#5b5d61'; g.fillRect(0, 0, w, h);
@@ -80,7 +142,8 @@ export function makeTextures() {
     g.fillStyle = '#141820'; g.fillRect(0, 0, w, h);
     for (let y = 6; y < h; y += 16) for (let x = 6; x < w; x += 14) { const r = R(); g.fillStyle = r < 0.45 ? '#ffd890' : r < 0.6 ? '#bfe3ff' : '#20262f'; g.fillRect(x, y, 8, 10); }
   });
-  return { asphalt, grass, kerb, gravel, checker, ads, fence, crowd, windows, nightWindows };
+  const asph = quality && quality !== 'low' ? asphaltMaps(quality === 'high' ? 512 : 384) : null;
+  return { asphalt: asph ? asph.map : asphalt, asphaltN: asph && asph.normal, asphaltR: asph && asph.rough, grass, kerb, gravel, checker, ads, fence, crowd, windows, nightWindows };
 }
 
 // ---------- geometry helpers along the track ----------
@@ -143,7 +206,7 @@ function flagRanges(T, flag) {
 }
 
 export function buildScenery(T, scene, quality) {
-  const tex = makeTextures();
+  const tex = makeTextures(quality);
   const circ = T.circ;
   const tod = TIMES[circ.time] || TIMES.afternoon;
   const TH = THEMES[circ.theme] || THEMES.park;
@@ -217,6 +280,13 @@ export function buildScenery(T, scene, quality) {
     const rt = pm.fromScene(envScene, 0.02);
     scene.environment = rt.texture; scene.environmentIntensity = 0.75;
     pm.dispose();
+    // real sky photo (Poly Haven HDRI, CC0) for reflections and ambient light, when the venue has one
+    const envName = { park: 'park', airfield: 'park', harbour: 'venice', hills: 'sunrise', bowl: 'sunrise', forest: 'forest' }[circ.theme];
+    if (envName && !night && quality !== 'low' && !window.__noHDRI) loadHDRIEnv(envName, sunDir).then(tx => {
+      if (!tx || !S.renderer || S.scene !== scene) return;
+      const pm2 = new THREE.PMREMGenerator(S.renderer); const rt2 = pm2.fromEquirectangular(tx); pm2.dispose(); tx.dispose();
+      const old = scene.environment; scene.environment = rt2.texture; scene.environmentIntensity = 0.32; if (old) old.dispose();
+    });
     hemi.intensity = tod.hemiI * 0.55;
   }
 
@@ -247,7 +317,13 @@ export function buildScenery(T, scene, quality) {
   tg.computeVertexNormals();
   const grassTex = tex.grass; grassTex.repeat.set((gx1 - gx0) / 24, (gz1 - gz0) / 24);
   const groundCol = TH.paved ? (night ? 0x3a3c42 : 0x8b8f86) : 0xffffff;
-  const ground = new THREE.Mesh(tg, new THREE.MeshLambertMaterial({ map: TH.paved ? null : grassTex, color: groundCol }));
+  const groundMat = new THREE.MeshLambertMaterial({ map: TH.paved ? null : grassTex, color: groundCol });
+  if (!TH.paved && quality !== 'low') groundMat.onBeforeCompile = sh => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWp;').replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWp = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWp;\nfloat hsh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}\nfloat vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hsh(i),hsh(i+vec2(1,0)),f.x),mix(hsh(i+vec2(0,1)),hsh(i+vec2(1,1)),f.x),f.y);}')
+      .replace('#include <map_fragment>', '#include <map_fragment>\n{ float m = vn(vWp.xz * 0.012) * 0.6 + vn(vWp.xz * 0.05) * 0.4; diffuseColor.rgb *= mix(vec3(0.78, 0.86, 0.72), vec3(1.12, 1.06, 0.92), m); }');
+  };
+  const ground = new THREE.Mesh(tg, groundMat);
   ground.receiveShadow = true; group.add(ground);
   T.heightAt = heightAt;
 
@@ -264,7 +340,8 @@ export function buildScenery(T, scene, quality) {
 
   // ---- road ----
   const asphalt = tex.asphalt; asphalt.repeat.set(1, 1);
-  const roadMat = new THREE.MeshStandardMaterial({ map: asphalt, vertexColors: true, roughness: 0.92, metalness: 0.0, color: 0xc8c8c8, envMapIntensity: 0.35 });
+  const roadMat = new THREE.MeshStandardMaterial({ map: asphalt, vertexColors: true, roughness: 0.92, metalness: 0.0, color: 0xc8c8c8, envMapIntensity: 0.45 });
+  if (tex.asphaltN) { roadMat.normalMap = tex.asphaltN; roadMat.normalScale.set(0.6, 0.6); roadMat.roughnessMap = tex.asphaltR; roadMat.roughness = 1; }
   T.roadMat = roadMat;
   const lineAt = i => T.line[i];
   const road = new THREE.Mesh(stripGeo(T, 0, T.N, -hw - 0.2, hw + 0.2, 12, 0.02, 5, 3.2, (i, d) => {

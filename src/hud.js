@@ -2,7 +2,7 @@ import { COMPOUNDS, PUSH_LEVELS } from './data.js';
 import { fmt } from './race.js';
 import { PlayerCar, PHYS } from './physics.js';
 import { $, html, txt, isTouch, hex, clamp, tyreBadge } from './util';
-import { cfg, sound, input, S, isSolo } from './ctx';
+import { cfg, sound, input, S, isSolo, saveCfg } from './ctx';
 import { buildGrandstandHTML, setupGrandstand, updateGrandstand } from './grandstand';
 import { seg } from './menu';
 import { flash } from './game';
@@ -20,7 +20,8 @@ export function buildHUD(g) {
     <div class="topc"><div class="chip"><small>LAP</small><span id="lapc">1/${race.laps}</span></div>${!isSolo() && !gs ? '<div class="chip"><span class="posbig" id="posc">P1</span></div>' : ''}<div class="chip hidden" id="flagc"></div></div>
     ${ai ? '' : `<div class="lapinfo"><div class="ln"><span>LAP TIME</span><b id="curl">0:00.000</b></div><div class="sectors" id="secs"><div></div><div></div><div></div></div><div class="ln"><span>LAST</span><span id="lastl">--</span></div><div class="ln"><span>BEST</span><span id="bestl">--</span></div><div class="delta" id="delta"></div></div>
     <div class="tyrebox" id="tyrebox"></div>
-    <div class="topbtns"><button class="hbtn pe" id="bHelp" title="Controls (${keyName(bindings().help[0] || 'KeyH')})">?</button><button class="hbtn pe" id="bCam">CAM</button><button class="hbtn pe" id="bLine">LINE</button><button class="hbtn pe" id="bPause">II</button></div>`}
+    <div class="topbtns"><button class="hbtn pe" id="bHelp" title="Controls (${keyName(bindings().help[0] || 'KeyH')})">?</button><button class="hbtn pe snd" id="bSnd" title="Sound (M = mute)"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M3 9v6h4l5 4V5L7 9H3z"/><path id="spkW" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/><path id="spkX" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M16 9l5 6M21 9l-5 6" style="display:none"/></svg></button><button class="hbtn pe" id="bCam">CAM</button><button class="hbtn pe" id="bLine">LINE</button><button class="hbtn pe" id="bPause">II</button></div>
+    <div class="soundpanel hidden" id="soundpanel"></div>`}
     <div id="mirrorL" class="mirror" style="display:none"></div><div id="mirrorR" class="mirror" style="display:none"></div>
     <div id="coach" class="coach hidden"></div>
     <div class="rc" id="rc"></div>
@@ -40,16 +41,20 @@ export function buildHUD(g) {
       </div>
       <div class="tyrew" id="wtyre"><i></i><i></i><i></i><i></i></div>
       <div class="modes"><span class="aero" id="mAero">STRAIGHT</span><span class="ot" id="mOT">OVERTAKE</span><span class="boost" id="mBoost">BOOST</span><span class="rech" id="mRech">RECHARGE</span><span class="lim" id="mLim">PIT</span></div></div>
-    <canvas class="minimap" id="minimap" width="340" height="300"></canvas>`}
+    <div class="mapbox ${cfg.mapSize}" id="mapbox"><div class="maphd"><b>${g.T.circ.name.toUpperCase()}</b><span id="mnext"></span></div><canvas class="minimap" id="minimap" width="600" height="460"></canvas></div>`}
     ${!ai ? `<div id="touch" class="${isTouch ? '' : 'hidden'} ${cfg.controls.lefty ? 'lefty' : ''} steer-${cfg.controls.steerMode}" style="--bs:${cfg.controls.btnScale}">
       <div class="pad steerpad" id="steerpad"><div class="knob" id="knob"></div><div class="lbl">STEER</div></div>
       <div class="pad steerbtns"><button class="sbtn" id="sLeft">◀</button><button class="sbtn" id="sRight">▶</button></div>
       <div class="pad tiltind" id="tiltind"><i id="tiltbar"></i><div class="lbl">TILT TO STEER</div></div>
-      <div class="pad pedal brk" id="pBrk">BRAKE</div><div class="pad pedal thr" id="pThr">THROTTLE</div>
-      <div class="pad tbtns"><button class="hbtn boost" id="tBoost">BOOST</button><button class="hbtn ot" id="tOT">OT</button><button class="hbtn rech" id="tRech">RECHG</button><button class="hbtn box" id="tBox">BOX</button></div>
+      <div class="pad pedal brk" id="pBrk"><i class="pfill"></i><span>BRAKE</span></div><div class="pad pedal thr" id="pThr"><i class="pfill"></i><span>THROTTLE</span></div>
+      <div class="pad tbtns">
+        <button class="tbtn boost" id="tBoost"><i class="fill" id="tBoostFill"></i><b>BOOST</b><small>hold</small></button>
+        <button class="tbtn ot" id="tOT"><b>OVERTAKE</b><small id="tOTs">within 1 s</small></button>
+        <button class="tbtn rech" id="tRech"><b>RECHARGE</b><small id="tRechS">off</small></button>
+        <button class="tbtn box" id="tBox"><b>BOX</b><small id="tBoxS">pit this lap</small></button></div>
       ${!cfg.assist.autoGear ? '<div class="pad gearbtns"><button class="hbtn" id="gUp">▲</button><button class="hbtn" id="gDn">▼</button></div>' : ''}
     </div>
-    ${!isTouch ? `<div class="hint" id="kbhint">${kbHint()}</div>` : ''}` : ''}
+    ${!isTouch && cfg.ctlStrip !== false ? `<div class="ctlstrip" id="ctlstrip">${ctlStrip()}</div>` : ''}` : ''}
     ${pw ? buildPitwallHTML(g) : ''}${gs ? buildGrandstandHTML(g) : ''}
     <div id="pitmenuHost"></div><div id="pitgameHost"></div><div id="overlayHost"></div>
     <div class="rotate ${isTouch ? 'need' : ''}"><div><h2 style="font-style:italic">Turn your phone sideways</h2><p style="color:#9aa3ad">The cockpit and pit wall are built for landscape.</p></div></div>`;
@@ -75,15 +80,27 @@ export function buildHUD(g) {
   else if (!pw) {
     $('#bCam').onclick = () => input.press('cam');
     $('#bHelp').onclick = () => input.press('help');
+    $('#bSnd').onclick = e => { e.stopPropagation(); toggleSoundPanel(g); };
+    updateSoundIcon();
     if (isTouch) $('#wscreen').onclick = () => input.press('page');
     $('#bLine').onclick = () => input.press('line');
     $('#bPause').onclick = () => input.press('pause');
     setupTouch(g);
     // minimap base
-    drawMinimapBase(g, $('#minimap'));
+    { const mb = $('#mapbox'); const ro = () => { document.documentElement.style.setProperty('--mapH', mb.offsetHeight + 'px'); document.documentElement.style.setProperty('--mapW', mb.offsetWidth + 'px'); }; ro(); requestAnimationFrame(ro); }
+    drawMinimapBase(g, $('#minimap')); requestAnimationFrame(() => { if (g.mapCanvas && g.mapCanvas.clientWidth) drawMinimapBase(g, g.mapCanvas); });
   } else setupPitwall(g);
 }
 
+function ctlStrip() {
+  const k = a => `<kbd>${label(a, 'kb')}</kbd>`;
+  return `<div class="cs drive">${k('throttle')}${k('brake')}${k('left')}${k('right')}<span>drive</span></div>
+    <div class="cs boost" id="csBoost">${k('boost')}<span>BOOST</span><i class="bar"><i id="csBatt"></i></i></div>
+    <div class="cs ot" id="csOT">${k('ot')}<span>OVERTAKE</span></div>
+    <div class="cs rech" id="csRech">${k('recharge')}<span>RECHARGE</span></div>
+    <div class="cs box" id="csBox">${k('box')}<span>BOX</span></div>
+    <div class="cs more">${k('help')}<span>all controls</span></div>`;
+}
 function kbHint() {
   const k = a => `<kbd>${label(a, 'kb')}</kbd>`;
   return `${k('throttle')}${k('brake')}${k('left')}${k('right')} drive · ${k('boost')} boost · ${k('ot')} overtake · ${k('recharge')} recharge · ${k('box')} box · ${k('help')} all controls`;
@@ -118,37 +135,112 @@ export function setupTouch(g) {
   if (cfg.controls.steerMode === 'tilt') input.enableTilt();
 }
 
+// Track map: north-up (never rotates, so the shape is easy to learn), corner numbers, names,
+// braking points, straight-mode zones and sector colours. The header names the next corner.
 export function drawMinimapBase(g, cv) {
   const T = g.T; const ctx = cv.getContext('2d');
   let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
   for (let i = 0; i < T.N; i++) { minX = Math.min(minX, T.cx[i]); maxX = Math.max(maxX, T.cx[i]); minZ = Math.min(minZ, T.cz[i]); maxZ = Math.max(maxZ, T.cz[i]); }
-  const W = cv.width, H = cv.height, pad = 22;
+  const W = cv.width, H = cv.height;
+  const k = W / Math.max(120, cv.clientWidth || 300); // canvas px per CSS px
+  const pad = (cfg.mapNames && (cv.clientWidth || 300) >= 260 ? 40 : 22) * k;
   const sc = Math.min((W - pad * 2) / (maxX - minX), (H - pad * 2) / (maxZ - minZ));
   const ox = (W - (maxX - minX) * sc) / 2, oz = (H - (maxZ - minZ) * sc) / 2;
   g.mapXf = (x, z) => [(x - minX) * sc + ox, (z - minZ) * sc + oz];
+  g.mapK = k;
   const base = document.createElement('canvas'); base.width = W; base.height = H; const b = base.getContext('2d');
   b.lineJoin = 'round'; b.lineCap = 'round';
-  b.strokeStyle = 'rgba(255,255,255,0.85)'; b.lineWidth = 7; b.beginPath();
-  for (let i = 0; i <= T.N; i += 2) { const [x, y] = g.mapXf(T.cx[i % T.N], T.cz[i % T.N]); i ? b.lineTo(x, y) : b.moveTo(x, y); }
-  b.stroke();
-  // sectors
+  const path = (i0, i1, off = 0) => { b.beginPath(); for (let i = i0; i <= i1; i += 1) { const j = ((i % T.N) + T.N) % T.N; const [x, y] = g.mapXf(T.cx[j] + T.nx[j] * off, T.cz[j] + T.nz[j] * off); i === i0 ? b.moveTo(x, y) : b.lineTo(x, y); } };
+  // casing + track
+  b.strokeStyle = 'rgba(0,0,0,0.55)'; b.lineWidth = 9 * k; path(0, T.N); b.stroke();
+  b.strokeStyle = '#e9edf2'; b.lineWidth = 5 * k; path(0, T.N); b.stroke();
+  // bridge: draw the upper road again on top with a gap so the crossover reads
+  if (T.hasBridge) { let st = -1; for (let i = 0; i <= T.N; i++) { const on = T.bridge[i % T.N]; if (on && st < 0) st = i; if ((!on || i === T.N) && st >= 0) { b.strokeStyle = 'rgba(0,0,0,0.8)'; b.lineWidth = 11 * k; path(st, i - 1); b.stroke(); b.strokeStyle = '#e9edf2'; b.lineWidth = 5 * k; path(st, i - 1); b.stroke(); st = -1; } } }
+  // sector colours (thin inner line)
   const secCol = ['#e10600', '#2bb8f0', '#f5c400'];
-  for (let k = 0; k < 3; k++) { b.strokeStyle = secCol[k]; b.lineWidth = 3; b.beginPath(); const i0 = Math.floor(T.N * k / 3), i1 = Math.floor(T.N * (k + 1) / 3); for (let i = i0; i <= i1; i++) { const [x, y] = g.mapXf(T.cx[i % T.N], T.cz[i % T.N]); i === i0 ? b.moveTo(x, y) : b.lineTo(x, y); } b.stroke(); }
-  // straight-mode zones
-  b.strokeStyle = '#3aa0ff'; b.lineWidth = 2;
-  for (const [a, e] of T.zones) { b.beginPath(); let s = a; const end = e < a ? e + T.L : e; for (; s <= end; s += 8) { const o = {}; T.at(s, o); const [x, y] = g.mapXf(o.x + o.nx * 9, o.z + o.nz * 9); s === a ? b.moveTo(x, y) : b.lineTo(x, y); } b.stroke(); }
-  const [sx, sy] = g.mapXf(T.cx[0], T.cz[0]); b.fillStyle = '#fff'; b.fillRect(sx - 2, sy - 7, 4, 14);
+  for (let s = 0; s < 3; s++) { b.strokeStyle = secCol[s]; b.lineWidth = 1.6 * k; path(Math.floor(T.N * s / 3), Math.floor(T.N * (s + 1) / 3)); b.stroke(); }
+  // straight-mode zones (blue, outside the track)
+  b.strokeStyle = '#3aa0ff'; b.lineWidth = 2.4 * k;
+  for (const [a, e] of T.zones) { const i0 = Math.floor(a / T.ds), i1 = Math.floor((e < a ? e + T.L : e) / T.ds); path(i0, i1, 7 / sc * k + 6); b.stroke(); }
+  // braking points (red ticks where the speed profile starts to fall hard)
+  b.fillStyle = '#ff3b30';
+  for (const c of T.corners) {
+    const vA = T.profile[c.apex % T.N];
+    let i = c.i0; for (let n = 0; n < 200; n++) { const j = (i - 1 + T.N) % T.N; if (T.profile[j] <= T.profile[i] + 0.02) break; i = j; }
+    if (T.profile[i] - vA < 12) continue;
+    const [x, y] = g.mapXf(T.cx[i], T.cz[i]); b.beginPath(); b.arc(x, y, 2.6 * k, 0, 7); b.fill();
+  }
+  // start/finish
+  { const [sx, sy] = g.mapXf(T.cx[0], T.cz[0]); const ang = Math.atan2(T.tz[0], T.tx[0]); b.save(); b.translate(sx, sy); b.rotate(ang); b.fillStyle = '#fff'; b.fillRect(-2 * k, -8 * k, 4 * k, 16 * k); b.fillStyle = '#000'; b.fillRect(-2 * k, -8 * k, 2 * k, 4 * k); b.fillRect(0, -4 * k, 2 * k, 4 * k); b.fillRect(-2 * k, 0, 2 * k, 4 * k); b.fillRect(0, 4 * k, 2 * k, 4 * k); b.restore(); }
+  // corner numbers (outside of each turn) and names
+  const big = cv.clientWidth >= 260;
+  b.textAlign = 'center'; b.textBaseline = 'middle';
+  g.mapCorners = []; const named = new Set();
+  T.corners.forEach((c, n) => {
+    const i = c.apex % T.N, out = -c.dir; const off = 15 * k / sc;
+    const [x, y] = g.mapXf(T.cx[i] + T.nx[i] * out * off, T.cz[i] + T.nz[i] * out * off);
+    g.mapCorners.push({ x, y, i });
+    b.fillStyle = 'rgba(10,12,16,0.85)'; b.beginPath(); b.arc(x, y, 7.5 * k, 0, 7); b.fill();
+    b.fillStyle = '#fff'; b.font = `800 ${9 * k}px Inter, system-ui, sans-serif`; b.fillText(String(n + 1), x, y + 0.5 * k);
+    if (cfg.mapNames && big && c.name && !/^Turn \d+$/.test(c.name) && !named.has(c.name)) {
+      named.add(c.name);
+      b.font = `600 ${8 * k}px Inter, system-ui, sans-serif`;
+      const dx = x - W / 2, dy = y - H / 2; const lx = x + Math.sign(dx || 1) * 11 * k, ly = y + Math.sign(dy || 1) * 9 * k;
+      b.textAlign = dx > 0 ? 'left' : 'right';
+      b.lineWidth = 3 * k; b.strokeStyle = 'rgba(0,0,0,0.75)'; b.strokeText(c.name, lx, ly);
+      b.fillStyle = 'rgba(255,255,255,0.8)'; b.fillText(c.name, lx, ly); b.textAlign = 'center';
+    }
+  });
   g.mapBase = base; g.mapCanvas = cv; g.mapCtx = ctx;
 }
 export function drawMinimap(g, cv, ctx) {
   if (!cv || !ctx) return;
   ctx.clearRect(0, 0, cv.width, cv.height); ctx.drawImage(g.mapBase, 0, 0);
-  const T = g.T, race = g.race; const o = {};
-  const draw = (c, r, col, ring) => { T.at(c.s, o); const [x, y] = g.mapXf(o.x + o.nx * c.d, o.z + o.nz * c.d); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); if (ring) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke(); } };
-  for (const c of race.cars) if (c !== g.focus) draw(c, 5, hex(c.team.color), false);
-  if (race.scCar) draw(race.scCar, 6, '#ffb000', true);
-  draw(g.focus, 8, hex(g.focus.team.color), true);
+  const T = g.T, race = g.race; const o = {}; const k = g.mapK || 2;
+  // next corner highlight
+  if (g.nextCorner != null && g.mapCorners && g.mapCorners[g.nextCorner]) { const m = g.mapCorners[g.nextCorner]; ctx.strokeStyle = '#12e0ff'; ctx.lineWidth = 2.5 * k; ctx.beginPath(); ctx.arc(m.x, m.y, 10 * k, 0, 7); ctx.stroke(); }
+  const draw = (c, r, col, ring) => { T.at(c.s, o); const [x, y] = g.mapXf(o.x + o.nx * c.d, o.z + o.nz * c.d); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, r * k, 0, 7); ctx.fill(); if (ring) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * k; ctx.stroke(); } };
+  for (const c of race.cars) if (c !== g.focus && !c.retired) draw(c, 3.4, hex(c.team.color), false);
+  if (race.scCar) draw(race.scCar, 4, '#ffb000', true);
+  // you: an arrow pointing the way you're going
+  { const f = g.focus; T.at(f.s, o); const [x, y] = g.mapXf(o.x + o.nx * f.d, o.z + o.nz * f.d); const a = Math.atan2(o.tz, o.tx);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.fillStyle = hex(f.team.color); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2 * k;
+    ctx.beginPath(); ctx.moveTo(8 * k, 0); ctx.lineTo(-6 * k, 5.5 * k); ctx.lineTo(-3 * k, 0); ctx.lineTo(-6 * k, -5.5 * k); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); }
 }
+// next corner: number, name, direction and distance (for the map header)
+export function nextCornerInfo(g) {
+  const T = g.T, p = g.focus; if (!T.corners.length) return null;
+  let best = 0, bd = 1e9;
+  T.corners.forEach((c, n) => { let d = c.sStart - p.s; if (d < -30) d += T.L; if (d < bd) { bd = d; best = n; } });
+  return { n: best, c: T.corners[best], d: Math.max(0, bd) };
+}
+
+// ---------------- sound panel ----------------
+export function updateSoundIcon() {
+  const w = document.getElementById('spkW'), x = document.getElementById('spkX'), b = document.getElementById('bSnd');
+  if (!w) return; w.style.display = cfg.muted ? 'none' : ''; x.style.display = cfg.muted ? '' : 'none'; b.classList.toggle('muted', !!cfg.muted);
+}
+export function applySound() { sound.setMix(cfg.mix, cfg.muted); sound.setVolume(cfg.volume); updateSoundIcon(); if (cfg.muted) try { speechSynthesis.cancel(); } catch (e) { } }
+export function toggleSoundPanel(g, force) {
+  const el = $('#soundpanel'); if (!el) return;
+  const open = force != null ? force : el.classList.contains('hidden');
+  if (!open) { el.classList.add('hidden'); return; }
+  const row = (key, lab, sub, max = 1) => `<div class="srow"><label>${lab}<small>${sub}</small></label><input type="range" min="0" max="${max}" step="0.05" data-mix="${key}" value="${key === 'volume' ? cfg.volume : cfg.mix[key]}"></div>`;
+  el.innerHTML = `<div class="shd"><b>SOUND</b><button class="hbtn sm ${cfg.muted ? 'on' : ''}" id="sMute">${cfg.muted ? 'Unmute' : 'Mute all'}</button></div>
+    ${row('volume', 'Master', 'everything')}
+    ${row('engine', 'Engines', 'yours and other cars', 1.5)}
+    ${row('fx', 'Effects', 'tyres, wind, kerbs, beeps', 1.5)}
+    ${row('amb', 'Crowd and rain', 'ambience', 1.5)}
+    ${row('radio', 'Team radio voice', 'spoken messages')}
+    <div class="sfoot"><span>M mutes during the race</span><button class="hbtn sm" id="sClose">Done</button></div>`;
+  el.classList.remove('hidden');
+  el.onclick = e => e.stopPropagation();
+  el.querySelectorAll('[data-mix]').forEach(r => r.oninput = () => { const k = r.dataset.mix; if (k === 'volume') cfg.volume = +r.value; else cfg.mix[k] = +r.value; if (cfg.muted && +r.value > 0) cfg.muted = false; applySound(); saveCfgLater(); });
+  $('#sMute').onclick = () => { cfg.muted = !cfg.muted; applySound(); saveCfgLater(); toggleSoundPanel(g, true); };
+  $('#sClose').onclick = () => toggleSoundPanel(g, false);
+  setTimeout(() => document.addEventListener('pointerdown', function off(e) { if (!el.contains(e.target) && e.target.closest('#bSnd') == null) { el.classList.add('hidden'); } document.removeEventListener('pointerdown', off); }), 0);
+}
+let saveT = 0; const saveCfgLater = () => { clearTimeout(saveT); saveT = setTimeout(() => saveCfg(), 300); };
 
 // ---------------- pit wall UI ----------------
 export function buildPitwallHTML(g) {
@@ -401,12 +493,28 @@ export function updateHUD(g, dt) {
   $('#mLim').classList.toggle('on', !!p.pit);
   // touch buttons state
   if (isTouch) {
-    $('#tOT').classList.toggle('on', p.otActive); $('#tOT').disabled = !(race.otAvailable || p.otActive);
-    $('#tBoost').classList.toggle('on', p.boost); $('#tRech').classList.toggle('on', p.recharge); $('#tBox').classList.toggle('on', !!p.pitRequest);
+    const otOK = race.otAvailable || p.otActive;
+    $('#tOT').classList.toggle('on', p.otActive); $('#tOT').classList.toggle('ready', race.otAvailable && !p.otActive); $('#tOT').disabled = !otOK;
+    txt($('#tOTs'), p.otActive ? 'ACTIVE' : race.otAvailable ? 'READY' : 'within 1 s');
+    $('#tBoost').classList.toggle('on', p.boost); $('#tBoost').classList.toggle('low', p.battery < 0.3);
+    $('#tBoostFill').style.transform = `scaleX(${(p.battery / PHYS.battery).toFixed(3)})`;
+    $('#tRech').classList.toggle('on', p.recharge); txt($('#tRechS'), p.recharge ? 'ON' : 'off');
+    $('#tBox').classList.toggle('on', !!p.pitRequest); txt($('#tBoxS'), p.pitRequest ? 'BOXING' : 'pit this lap');
+    const pf = (id, v) => { const e = $(id + ' .pfill'); if (e) e.style.transform = `scaleY(${v.toFixed(2)})`; };
+    pf('#pThr', p.throttle || 0); pf('#pBrk', p.brake || 0);
     $('#touch').style.display = p.pit || g.pg ? 'none' : '';
     if (cfg.controls.steerMode === 'tilt') { const tb = $('#tiltbar'); if (tb) tb.style.transform = `translateX(${(-p.steer * 45).toFixed(1)}%)`; }
   }
-  const kh = $('#kbhint'); if (kh) kh.style.display = race.time > 25 ? 'none' : '';
+  const cs = $('#ctlstrip');
+  if (cs) {
+    const tog = (id, cls, on) => { const e = $(id); if (e && e.classList.contains(cls) !== !!on) e.classList.toggle(cls, !!on); };
+    tog('#csBoost', 'on', p.boost); tog('#csBoost', 'low', p.battery < 0.3);
+    tog('#csOT', 'ready', race.otAvailable && !p.otActive); tog('#csOT', 'on', p.otActive); tog('#csOT', 'dim', !(race.otAvailable || p.otActive));
+    tog('#csRech', 'on', p.recharge); tog('#csBox', 'on', !!p.pitRequest);
+    const cb = $('#csBatt'); if (cb) cb.style.transform = `scaleX(${(p.battery / PHYS.battery).toFixed(3)})`;
+    // after the opening laps only the energy tools stay, smaller
+    tog('#ctlstrip', 'compact', race.time > 45);
+  }
 
   // battle graphic
   const b = $('#battle');
@@ -419,7 +527,17 @@ export function updateHUD(g, dt) {
   } else b.classList.add('hidden');
 
   // minimap
-  if (race.time - g.lastMap > 0.07) { g.lastMap = race.time; drawMinimap(g, g.mapCanvas, g.mapCtx); }
+  if (race.time - g.lastMap > 0.07) {
+    g.lastMap = race.time;
+    const nc = nextCornerInfo(g);
+    if (nc) {
+      g.nextCorner = nc.n;
+      const nm = nc.c.name && !/^Turn \d+$/.test(nc.c.name) ? nc.c.name : '';
+      const s = `<i class="dir">${nc.c.dir > 0 ? '↰' : '↱'}</i> T${nc.n + 1}${nm ? ' · ' + nm : ''} <small>${nc.d < 1000 ? Math.round(nc.d / 10) * 10 + ' m' : (nc.d / 1000).toFixed(1) + ' km'}</small>`;
+      const mn = $('#mnext'); if (mn && mn._s !== s) { mn._s = s; mn.innerHTML = s; }
+    }
+    drawMinimap(g, g.mapCanvas, g.mapCtx);
+  }
 
   // results
   if (cfg.mode === 'race' && p.finished && g.finishAt && ((race.finishedOrder.length >= race.cars.filter(c => !c.retired).length && performance.now() - g.finishAt > 4000) || performance.now() - g.finishAt > 20000)) showResults(g);

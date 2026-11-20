@@ -46,3 +46,11 @@
 - Remappable keys, gamepad D-pad extras, touch steering modes (drag, tilt, buttons), sensitivity, left-handed layout, button size, touch gear buttons
 - How to play tab, controls card (H or ?), in-race coach with device-aware key names
 - Next: brake balance and differential settings on the wheel, look-left and look-right for wheel-to-wheel battles, force feedback for wheels
+
+## HUD, sound and visuals pass (Nov 2026) — done
+- Track map top right: corner numbers and names, braking points, Straight-mode zones, a next-corner callout, a direction arrow for your car, the bridge drawn as a crossover
+- Sound mixer (master, engines, effects, crowd and rain, radio voice, mute); M mutes
+- Live controls strip for keyboard players, and touch buttons that show their state (battery, Overtake ready, recharge, boxing)
+- Real-sky (HDRI) reflections, a procedural asphalt with normal and roughness maps, grass without visible tiling, a calmer bloom
+- Recorded tyre skid and impact sounds
+- Next: Quaternius trees, Poly Haven or ambientCG road textures, a CC0 engine recording (docs/ASSETS.md)

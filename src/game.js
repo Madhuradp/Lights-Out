@@ -7,7 +7,7 @@ import { makePost, addLensflare } from './post.js';
 import { PlayerCar, PHYS } from './physics.js';
 import { $, isTouch, clamp, wrapA } from './util';
 import { cfg, saveCfg, sound, haptics, input, getTrack, S, isSolo, isAI } from './ctx';
-import { buildHUD, updateHUD } from './hud';
+import { buildHUD, updateHUD, applySound } from './hud';
 import { openPitMenu, closePitMenu, startPitGame, updatePitGame } from './pitstop';
 import { showPause, hidePause } from './screens';
 import { seatCamera, renderBigScreen } from './grandstand';
@@ -168,7 +168,7 @@ export function loop(now) {
 
   // global actions
   if (input.consume('pause')) { if (g.paused) hidePause(g); else if (!g.resultsShown) showPause(g); }
-  if (input.consume('mute')) { sound.enabled = !sound.enabled; if (!sound.enabled) sound.setVolume(0); else sound.setVolume(cfg.volume); }
+  if (input.consume('mute')) { cfg.muted = !cfg.muted; applySound(); saveCfg(); }
   if (input.consume('cam')) {
     const modes = cfg.mode === 'pitwall' ? ['tv', 'onboard', 'heli', 'chase'] : cfg.mode === 'grandstand' ? ['seat', 'tv'] : ['cockpit', 'tcam', 'chase'];
     g.camMode = modes[(modes.indexOf(g.camMode) + 1) % modes.length];
